@@ -1,5 +1,51 @@
 export type MealCategory = 'entree' | 'plat' | 'dessert';
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+
+export interface MealTypeMeta {
+  id: MealType;
+  label: string;
+  labelAr: string;
+  icon: string;
+  defaultSlots: string[];
+  defaultHours: string;
+  ticketPrefix: string;
+  color: string;
+}
+
+export const MEAL_TYPES_CONFIG: Record<MealType, MealTypeMeta> = {
+  breakfast: {
+    id: 'breakfast',
+    label: 'Petit-déjeuner',
+    labelAr: 'وجبة الإفطار',
+    icon: '🥐',
+    defaultSlots: ['07h00 - 07h30', '07h30 - 08h00', '08h00 - 08h30', '08h30 - 09h00'],
+    defaultHours: '07h00 - 09h00',
+    ticketPrefix: 'PDJ',
+    color: 'amber',
+  },
+  lunch: {
+    id: 'lunch',
+    label: 'Repas de midi (Déjeuner)',
+    labelAr: 'وجبة الغداء',
+    icon: '🍽️',
+    defaultSlots: ['11h45 - 12h15', '12h15 - 12h45', '12h45 - 13h15', '13h15 - 13h45'],
+    defaultHours: '11h45 - 13h45',
+    ticketPrefix: 'REP',
+    color: 'emerald',
+  },
+  dinner: {
+    id: 'dinner',
+    label: 'Dîner (Soir)',
+    labelAr: 'وجبة العشاء',
+    icon: '🌙',
+    defaultSlots: ['19h00 - 19h30', '19h30 - 20h00', '20h00 - 20h30', '20h30 - 21h00'],
+    defaultHours: '19h00 - 21h00',
+    ticketPrefix: 'DIN',
+    color: 'indigo',
+  },
+};
+
 export interface MenuItem {
   id: string;
   category: MealCategory;
@@ -10,15 +56,23 @@ export interface MenuItem {
   calories?: number;
   imageUrl?: string;
   isPlatDuJour?: boolean; // Marqueur du plat vedette du jour
+  mealType?: MealType | 'all'; // Repas spécifique ou tous
 }
 
 export interface DailyMenu {
   id: string;
   date: string; // YYYY-MM-DD
   title: string;
+  // Déjeuner (Midi)
   entrees: MenuItem[];
   plats: MenuItem[];
   desserts: MenuItem[];
+  // Petit-déjeuner
+  breakfastItems?: MenuItem[];
+  // Dîner (Repas du soir)
+  dinnerEntrees?: MenuItem[];
+  dinnerPlats?: MenuItem[];
+  dinnerDesserts?: MenuItem[];
   breadBeverageIncluded: boolean;
   chefNote?: string;
   featuredPlatId?: string; // Plat du jour sélectionné
@@ -54,13 +108,14 @@ export interface Reservation {
   staffName: string;
   staffDepartment: string;
   staffEmail?: string;
+  mealType?: MealType; // 'breakfast' | 'lunch' | 'dinner'
   selectedEntreeId?: string;
   selectedPlatId: string;
   selectedDessertId?: string;
   dietaryNotes?: string;
-  timeSlot: string; // e.g. "12h00 - 12h30"
+  timeSlot: string; // e.g. "12h00 - 12h30", "07h30 - 08h00", "19h30 - 20h00"
   status: ReservationStatus;
-  ticketCode: string; // Short code e.g. "REP-842"
+  ticketCode: string; // Short code e.g. "REP-842", "PDJ-102", "DIN-304"
   servedAt?: string; // Timestamp when meal was scanned and served
 }
 
@@ -70,7 +125,9 @@ export interface AppSettings {
   capacityPerDay: number;
   bookingWindowStart: string; // "08:00"
   bookingWindowEnd: string; // "10:00"
-  serviceHours: string; // "11h45 - 13h45"
+  breakfastServiceHours?: string; // "07h00 - 09h00"
+  serviceHours: string; // "11h45 - 13h45" (Midi)
+  dinnerServiceHours?: string; // "19h00 - 21h00" (Soir)
   adminPasswordHash: string; // Hashed or encoded representation
   allowCancellation: boolean;
   kitchenContactEmail: string;

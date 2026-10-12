@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { DailyMenu, TimeCheckResult, Reservation, AuthorizedUser } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { DailyMenu, TimeCheckResult, Reservation, AuthorizedUser, MealType, MEAL_TYPES_CONFIG } from '../types';
 import {
   Utensils,
-  Lock,
   Check,
   User,
   Briefcase,
   Clock,
-  MessageSquare,
   AlertOctagon,
   Sparkles,
   ShieldAlert,
@@ -17,7 +15,12 @@ import {
   UserPlus,
   QrCode,
   Camera,
-  XCircle,
+  Sun,
+  Moon,
+  Coffee,
+  CheckCheck,
+  Layers,
+  ChevronRight,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -31,6 +34,7 @@ interface ReservationFormProps {
   onReservationComplete: (reservation: Reservation) => void;
   todayDateStr: string;
   selectedPlatIdProp?: string;
+  selectedMealTypeProp?: MealType;
   initialBadgeProp?: string;
   restrictToAuthorizedUsers?: boolean;
   onOpenRegistration?: () => void;
@@ -47,22 +51,25 @@ const DEPARTMENTS = [
   'Autre service',
 ];
 
-const DEPARTMENTS_AR: Record<string, string> = {
-  'Ressources Humaines': 'الموارد البشرية',
-  'Pôle Technique & Informatique': 'القطب التقني والإعلام الآلي',
-  'Service Médical & Soins': 'المصلحة الطبية والتمريض',
-  'Enseignement & Formation': 'التعليم والتدريب الرياضي',
-  'Administration & Finances': 'الإدارة والمالية',
-  'Logistique & Services Généraux': 'الوسائل العامة واللوجستيات',
-  'Direction Générale': 'المديرية العامة',
-  'Autre service': 'مصلحة أخرى',
-};
+const BREAKFAST_TIME_SLOTS = [
+  '07h00 - 07h30',
+  '07h30 - 08h00',
+  '08h00 - 08h30',
+  '08h30 - 09h00',
+];
 
-const TIME_SLOTS = [
+const LUNCH_TIME_SLOTS = [
   '11h45 - 12h15',
   '12h15 - 12h45',
   '12h45 - 13h15',
   '13h15 - 13h45',
+];
+
+const DINNER_TIME_SLOTS = [
+  '19h00 - 19h30',
+  '19h30 - 20h00',
+  '20h00 - 20h30',
+  '20h30 - 21h00',
 ];
 
 export const ReservationForm: React.FC<ReservationFormProps> = ({
@@ -73,33 +80,78 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
   onReservationComplete,
   todayDateStr,
   selectedPlatIdProp,
+  selectedMealTypeProp = 'lunch',
   initialBadgeProp,
   restrictToAuthorizedUsers = true,
   onOpenRegistration,
 }) => {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
+
+  // Mode de réservation : repas unique ou pack journée complète (3 repas)
+  const [bookingMode, setBookingMode] = useState<'single' | 'all-day'>('single');
+  const [activeMealType, setActiveMealType] = useState<MealType>(selectedMealTypeProp);
+
+  // Coordonnées agent
   const [staffName, setStaffName] = useState('');
   const [staffDepartment, setStaffDepartment] = useState(DEPARTMENTS[0]);
   const [staffEmail, setStaffEmail] = useState('');
+  const [dietaryNotes, setDietaryNotes] = useState('');
+
+  // 1. Choix pour Repas de Midi (Lunch)
   const [selectedEntreeId, setSelectedEntreeId] = useState(menu.entrees[0]?.id || '');
   const [selectedPlatId, setSelectedPlatId] = useState(
     selectedPlatIdProp || menu.featuredPlatId || menu.plats[0]?.id || ''
   );
   const [selectedDessertId, setSelectedDessertId] = useState(menu.desserts[0]?.id || '');
-  const [timeSlot, setTimeSlot] = useState(TIME_SLOTS[1]);
-  const [dietaryNotes, setDietaryNotes] = useState('');
+  const [lunchTimeSlot, setLunchTimeSlot] = useState(LUNCH_TIME_SLOTS[1]);
+
+  // 2. Choix pour Petit-déjeuner (Breakfast)
+  const defaultBreakfastId = (menu.breakfastItems && menu.breakfastItems[0]?.id) || 'bf-1';
+  const [selectedBreakfastId, setSelectedBreakfastId] = useState(defaultBreakfastId);
+  const [breakfastTimeSlot, setBreakfastTimeSlot] = useState(BREAKFAST_TIME_SLOTS[1]);
+
+  // 3. Choix pour Dîner (Dinner)
+  const defaultDinnerPlatId = (menu.dinnerPlats && menu.dinnerPlats[0]?.id) || menu.plats[0]?.id || 'din-plat-1';
+  const defaultDinnerEntreeId = (menu.dinnerEntrees && menu.dinnerEntrees[0]?.id) || '';
+  const defaultDinnerDessertId = (menu.dinnerDesserts && menu.dinnerDesserts[0]?.id) || '';
+  const [selectedDinnerEntreeId, setSelectedDinnerEntreeId] = useState(defaultDinnerEntreeId);
+  const [selectedDinnerPlatId, setSelectedDinnerPlatId] = useState(defaultDinnerPlatId);
+  const [selectedDinnerDessertId, setSelectedDinnerDessertId] = useState(defaultDinnerDessertId);
+  const [dinnerTimeSlot, setDinnerTimeSlot] = useState(DINNER_TIME_SLOTS[1]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = useState<string | null>(null);
 
-  // Authorized users list for fast selection and autocomplete
+  // Whitelist & Réservations existantes pour cet agent aujourd'hui
   const [authorizedUsersList, setAuthorizedUsersList] = useState<AuthorizedUser[]>([]);
   const [verifiedUser, setVerifiedUser] = useState<AuthorizedUser | null>(null);
+  const [existingUserBookings, setExistingUserBookings] = useState<Reservation[]>([]);
 
   // QR Badge Scanner state
   const [isBadgeScannerOpen, setIsBadgeScannerOpen] = useState(false);
   const [identifiedByQr, setIdentifiedByQr] = useState(false);
 
-  // Apply matched user to form fields (instant zero-typing filling)
+  // Charger les réservations déjà enregistrées pour le nom sélectionné
+  const checkExistingBookings = async (name: string) => {
+    if (!name.trim()) {
+      setExistingUserBookings([]);
+      return;
+    }
+    try {
+      const { dbService } = await import('../services/dbService');
+      const todayReservations = await dbService.getReservations(todayDateStr);
+      const clean = name.trim().toLowerCase();
+      const matched = todayReservations.filter(
+        (r) => r.status !== 'cancelled' && r.staffName.trim().toLowerCase() === clean
+      );
+      setExistingUserBookings(matched);
+    } catch {
+      setExistingUserBookings([]);
+    }
+  };
+
+  // Remplissage instantané depuis QR Badge ou Whitelist
   const applyUserToForm = (user: AuthorizedUser, fromQr = true) => {
     setVerifiedUser(user);
     setStaffName(user.fullName);
@@ -108,10 +160,10 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
     if (user.dietaryNotes) setDietaryNotes(user.dietaryNotes);
     if (fromQr) setIdentifiedByQr(true);
     setErrorMessage(null);
+    checkExistingBookings(user.fullName);
   };
 
   useEffect(() => {
-    // Load whitelist
     const loadWhitelist = async () => {
       try {
         const { dbService } = await import('../services/dbService');
@@ -119,7 +171,6 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
         const activeList = list.filter((u) => u.active);
         setAuthorizedUsersList(activeList);
 
-        // Check if QR code opened this URL with query parameter (e.g. ?badge=AG-101)
         if (typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search);
           const targetBadge =
@@ -137,12 +188,6 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
             );
             if (matched) {
               applyUserToForm(matched, true);
-            } else {
-              // Pre-fill from URL parameters if provided
-              const nameParam = params.get('name');
-              const deptParam = params.get('dept');
-              if (nameParam) setStaffName(nameParam);
-              if (deptParam && DEPARTMENTS.includes(deptParam)) setStaffDepartment(deptParam);
             }
           }
         }
@@ -151,14 +196,22 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
     loadWhitelist();
   }, [initialBadgeProp]);
 
-  // Update plat if prop changes (e.g. user clicked "Choisir le Plat du Jour" in header)
+  // Si un plat ou un type de repas est passé en prop
   useEffect(() => {
     if (selectedPlatIdProp) {
-      setSelectedPlatId(selectedPlatIdProp);
+      if (selectedMealTypeProp === 'breakfast') {
+        setSelectedBreakfastId(selectedPlatIdProp);
+        setActiveMealType('breakfast');
+      } else if (selectedMealTypeProp === 'dinner') {
+        setSelectedDinnerPlatId(selectedPlatIdProp);
+        setActiveMealType('dinner');
+      } else {
+        setSelectedPlatId(selectedPlatIdProp);
+        setActiveMealType('lunch');
+      }
     }
-  }, [selectedPlatIdProp]);
+  }, [selectedPlatIdProp, selectedMealTypeProp]);
 
-  // When staff name changes manually, verify if it matches an authorized agent
   const handleNameChange = (val: string) => {
     setStaffName(val);
     setIdentifiedByQr(false);
@@ -178,18 +231,64 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
     } else {
       setVerifiedUser(null);
     }
+    checkExistingBookings(val);
   };
-
 
   const placesRemaining = Math.max(0, capacityTotal - currentReservationsCount);
   const isFull = placesRemaining <= 0;
-  const isBookingAllowed = timeStatus.isOpen && !isFull;
 
+  // Repas déjà réservés par l'agent
+  const alreadyBookedMeals = useMemo(() => {
+    return {
+      breakfast: existingUserBookings.find((r) => r.mealType === 'breakfast'),
+      lunch: existingUserBookings.find((r) => (r.mealType || 'lunch') === 'lunch'),
+      dinner: existingUserBookings.find((r) => r.mealType === 'dinner'),
+    };
+  }, [existingUserBookings]);
+
+  // Items du menu
+  const breakfastItems = menu.breakfastItems && menu.breakfastItems.length > 0 ? menu.breakfastItems : [
+    {
+      id: 'bf-1',
+      category: 'plat' as const,
+      name: 'Formule Complète Énergie (Sportif & Cadre)',
+      description: 'Œufs brouillés aux fines herbes, pain grillé, beurre AOP, yaourt grec, boisson chaude et pur jus pressé.',
+      allergens: ['Œufs', 'Lait', 'Gluten'],
+      isVegetarian: true,
+      calories: 460,
+    },
+    {
+      id: 'bf-2',
+      category: 'plat' as const,
+      name: 'Formule Traditionnelle Continentale',
+      description: 'Croissant pur beurre & pain au chocolat dorés, demi-baguette croustillante, confitures artisanales, café ou thé.',
+      allergens: ['Gluten', 'Lait'],
+      isVegetarian: true,
+      calories: 380,
+    },
+    {
+      id: 'bf-3',
+      category: 'plat' as const,
+      name: 'Formule Légère & Vitamines Bio',
+      description: 'Fromage blanc fermier, graines de chia et flocons d’avoine, fruits frais de saison, thé vert et pain de seigle toasté.',
+      allergens: ['Lait', 'Gluten'],
+      isVegetarian: true,
+      calories: 290,
+    },
+  ];
+
+  const dinnerEntrees = menu.dinnerEntrees && menu.dinnerEntrees.length > 0 ? menu.dinnerEntrees : menu.entrees;
+  const dinnerPlats = menu.dinnerPlats && menu.dinnerPlats.length > 0 ? menu.dinnerPlats : menu.plats;
+  const dinnerDesserts = menu.dinnerDesserts && menu.dinnerDesserts.length > 0 ? menu.dinnerDesserts : menu.desserts;
+
+  const platDuJourId = menu.featuredPlatId || menu.plats.find((p) => p.isPlatDuJour)?.id;
+
+  // SOUMISSION DU FORMULAIRE
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessInfo(null);
 
-    // Business rule validation: strictly 08h00 - 10h00
     if (!timeStatus.isOpen) {
       setErrorMessage(t('outsideHoursError'));
       return;
@@ -205,41 +304,158 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
       return;
     }
 
-    if (!selectedPlatId) {
-      setErrorMessage(t('missingPlatError'));
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
       const { dbService } = await import('../services/dbService');
 
-      // VERIFICATION UTILISATEUR AUTORISÉ (WHITELIST)
+      // Vérification Whitelist
       if (restrictToAuthorizedUsers) {
         const authCheck = await dbService.verifyUserAuthorized(staffName);
         if (!authCheck.authorized) {
-          setErrorMessage(
-            authCheck.message || t('unauthorizedUserError')
-          );
+          setErrorMessage(authCheck.message || t('unauthorizedUserError'));
           setIsSubmitting(false);
           return;
         }
       }
 
-      const created = await dbService.createReservation({
-        date: todayDateStr,
-        staffName: staffName.trim(),
-        staffDepartment,
-        staffEmail: staffEmail.trim() || undefined,
-        selectedEntreeId: selectedEntreeId || undefined,
-        selectedPlatId,
-        selectedDessertId: selectedDessertId || undefined,
-        timeSlot,
-        dietaryNotes: dietaryNotes.trim() || undefined,
-      });
+      // ====================================================
+      // CAS A : FORMULE TOUTE LA JOURNÉE (3 REPAS)
+      // ====================================================
+      if (bookingMode === 'all-day') {
+        const createdList: Reservation[] = [];
+        const errorsList: string[] = [];
 
-      // Launch celebration confetti
+        // 1. Petit-déjeuner
+        if (!alreadyBookedMeals.breakfast) {
+          try {
+            const bRes = await dbService.createReservation({
+              date: todayDateStr,
+              staffName: staffName.trim(),
+              staffDepartment,
+              staffEmail: staffEmail.trim() || undefined,
+              mealType: 'breakfast',
+              selectedPlatId: selectedBreakfastId || breakfastItems[0]?.id || 'bf-1',
+              timeSlot: breakfastTimeSlot,
+              dietaryNotes: dietaryNotes.trim() || undefined,
+            });
+            createdList.push(bRes);
+          } catch (err: any) {
+            errorsList.push(`Petit-déjeuner : ${err.message || 'Déjà réservé'}`);
+          }
+        }
+
+        // 2. Repas de midi
+        if (!alreadyBookedMeals.lunch) {
+          try {
+            const lRes = await dbService.createReservation({
+              date: todayDateStr,
+              staffName: staffName.trim(),
+              staffDepartment,
+              staffEmail: staffEmail.trim() || undefined,
+              mealType: 'lunch',
+              selectedEntreeId: selectedEntreeId || undefined,
+              selectedPlatId: selectedPlatId || menu.plats[0]?.id,
+              selectedDessertId: selectedDessertId || undefined,
+              timeSlot: lunchTimeSlot,
+              dietaryNotes: dietaryNotes.trim() || undefined,
+            });
+            createdList.push(lRes);
+          } catch (err: any) {
+            errorsList.push(`Midi : ${err.message || 'Déjà réservé'}`);
+          }
+        }
+
+        // 3. Dîner
+        if (!alreadyBookedMeals.dinner) {
+          try {
+            const dRes = await dbService.createReservation({
+              date: todayDateStr,
+              staffName: staffName.trim(),
+              staffDepartment,
+              staffEmail: staffEmail.trim() || undefined,
+              mealType: 'dinner',
+              selectedEntreeId: selectedDinnerEntreeId || undefined,
+              selectedPlatId: selectedDinnerPlatId || dinnerPlats[0]?.id,
+              selectedDessertId: selectedDinnerDessertId || undefined,
+              timeSlot: dinnerTimeSlot,
+              dietaryNotes: dietaryNotes.trim() || undefined,
+            });
+            createdList.push(dRes);
+          } catch (err: any) {
+            errorsList.push(`Dîner : ${err.message || 'Déjà réservé'}`);
+          }
+        }
+
+        if (createdList.length > 0) {
+          try {
+            confetti({
+              particleCount: 100,
+              spread: 80,
+              origin: { y: 0.6 },
+              colors: ['#059669', '#f59e0b', '#6366f1', '#10b981'],
+            });
+          } catch {}
+
+          // Retourne le premier ticket créé pour affichage
+          onReservationComplete(createdList[0]);
+        } else if (errorsList.length > 0) {
+          setErrorMessage(errorsList.join(' | '));
+        }
+
+        return;
+      }
+
+      // ====================================================
+      // CAS B : RÉSERVATION SIMPLE PAR REPAS CHOISI
+      // ====================================================
+      let created: Reservation;
+
+      if (activeMealType === 'breakfast') {
+        created = await dbService.createReservation({
+          date: todayDateStr,
+          staffName: staffName.trim(),
+          staffDepartment,
+          staffEmail: staffEmail.trim() || undefined,
+          mealType: 'breakfast',
+          selectedPlatId: selectedBreakfastId || breakfastItems[0]?.id || 'bf-1',
+          timeSlot: breakfastTimeSlot,
+          dietaryNotes: dietaryNotes.trim() || undefined,
+        });
+      } else if (activeMealType === 'dinner') {
+        created = await dbService.createReservation({
+          date: todayDateStr,
+          staffName: staffName.trim(),
+          staffDepartment,
+          staffEmail: staffEmail.trim() || undefined,
+          mealType: 'dinner',
+          selectedEntreeId: selectedDinnerEntreeId || undefined,
+          selectedPlatId: selectedDinnerPlatId || dinnerPlats[0]?.id,
+          selectedDessertId: selectedDinnerDessertId || undefined,
+          timeSlot: dinnerTimeSlot,
+          dietaryNotes: dietaryNotes.trim() || undefined,
+        });
+      } else {
+        // Repas de midi
+        if (!selectedPlatId) {
+          setErrorMessage(t('missingPlatError'));
+          setIsSubmitting(false);
+          return;
+        }
+        created = await dbService.createReservation({
+          date: todayDateStr,
+          staffName: staffName.trim(),
+          staffDepartment,
+          staffEmail: staffEmail.trim() || undefined,
+          mealType: 'lunch',
+          selectedEntreeId: selectedEntreeId || undefined,
+          selectedPlatId: selectedPlatId,
+          selectedDessertId: selectedDessertId || undefined,
+          timeSlot: lunchTimeSlot,
+          dietaryNotes: dietaryNotes.trim() || undefined,
+        });
+      }
+
       try {
         confetti({
           particleCount: 80,
@@ -258,23 +474,23 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
     }
   };
 
-  const platDuJourId = menu.featuredPlatId || menu.plats.find((p) => p.isPlatDuJour)?.id;
-
   return (
     <form
       onSubmit={handleSubmit}
       className="bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-200/40 p-6 sm:p-8"
     >
+      {/* Header section with capacity gauge */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
         <div>
-          <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-            {t('formTitle')}
+          <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+            <Utensils className="w-3.5 h-3.5" />
+            <span>Réservations de Repas &bull; Restauration Collective</span>
           </span>
           <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
-            {t('formTitle')}
+            Réserver Petit-déjeuner, Repas de midi ou Dîner
           </h3>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            {t('formSubtitle')}
+            Choisissez votre service, composez vos plats et obtenez immédiatement votre ticket de retrait avec QR Code.
           </p>
         </div>
 
@@ -317,7 +533,7 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
           <div className="flex items-start gap-3">
             <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div>
-              <div className="font-bold">{t('unauthorizedUserError')}</div>
+              <div className="font-bold">Information de réservation</div>
               <div className="text-xs sm:text-sm mt-0.5">{errorMessage}</div>
             </div>
           </div>
@@ -334,7 +550,9 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
         </div>
       )}
 
-      {/* 1. Coordonnées de l'agent & Validation Whitelist */}
+      {/* ==================================================== */}
+      {/* 1. COORDONNÉES DE L'AGENT & VALIDATION WHITELIST */}
+      {/* ==================================================== */}
       <div className="mt-6">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -363,9 +581,7 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
           </div>
         </div>
 
-        {/* ==================================================== */}
-        {/* BANNIÈRE RÉSERVATION EXPRESS PAR QR CODE BADGE */}
-        {/* ==================================================== */}
+        {/* Bannière Agent Identifié ou Scanner Badge */}
         {verifiedUser ? (
           <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
             <div className="flex items-center gap-3">
@@ -386,8 +602,8 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
                 </p>
                 <p className="text-xs text-slate-600">
                   {identifiedByQr
-                    ? 'Vos coordonnées ont été complétées automatiquement via votre QR Code. Choisissez vos plats ci-dessous pour finaliser votre réservation.'
-                    : 'Vos coordonnées sont vérifiées sur la liste autorisée. Vous pouvez finaliser votre réservation ci-dessous.'}
+                    ? 'Coordonnées auto-remplies via votre QR Code. Choisissez vos repas ci-dessous.'
+                    : 'Coordonnées vérifiées sur le registre officiel. Prêt pour réservation.'}
                 </p>
               </div>
             </div>
@@ -400,6 +616,7 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
                 setStaffEmail('');
                 setDietaryNotes('');
                 setIdentifiedByQr(false);
+                setExistingUserBookings([]);
               }}
               className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold transition shrink-0"
             >
@@ -415,14 +632,14 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
-                    {t('scanBadgeToBook')}
+                    Identification Express par Badge
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
                     Sans Saisie
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  {t('scanBadgeSubtitle')}
+                  Scannez votre badge ou QR code pour remplir vos coordonnées instantanément.
                 </p>
               </div>
             </div>
@@ -430,7 +647,7 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
             <button
               type="button"
               onClick={() => setIsBadgeScannerOpen(true)}
-              className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm shrink-0"
             >
               <Camera className="w-4 h-4" />
               <span>Scanner mon Badge</span>
@@ -438,7 +655,48 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
           </div>
         )}
 
+        {/* RÉSERVATIONS DÉJÀ EFFECTUÉES PAR CET AGENT AUJOURD'HUI */}
+        {existingUserBookings.length > 0 && (
+          <div className="mb-5 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
+            <div className="flex items-center gap-2">
+              <CheckCheck className="w-4 h-4 text-amber-600" />
+              <span className="text-xs font-black uppercase tracking-wider text-amber-900">
+                Vos réservations enregistrées pour aujourd'hui ({existingUserBookings.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {alreadyBookedMeals.breakfast && (
+                <span className="px-2.5 py-1 rounded-lg bg-amber-100/80 border border-amber-300 font-bold text-amber-900 flex items-center gap-1.5">
+                  <span>🥐 Petit-déjeuner réservé</span>
+                  <span className="font-mono text-[10px] bg-amber-200 px-1.5 py-0.5 rounded">
+                    {alreadyBookedMeals.breakfast.ticketCode}
+                  </span>
+                </span>
+              )}
+              {alreadyBookedMeals.lunch && (
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 border border-emerald-300 font-bold text-emerald-900 flex items-center gap-1.5">
+                  <span>🍽️ Repas de midi réservé</span>
+                  <span className="font-mono text-[10px] bg-emerald-200 px-1.5 py-0.5 rounded">
+                    {alreadyBookedMeals.lunch.ticketCode}
+                  </span>
+                </span>
+              )}
+              {alreadyBookedMeals.dinner && (
+                <span className="px-2.5 py-1 rounded-lg bg-indigo-100/80 border border-indigo-300 font-bold text-indigo-900 flex items-center gap-1.5">
+                  <span>🌙 Dîner du soir réservé</span>
+                  <span className="font-mono text-[10px] bg-indigo-200 px-1.5 py-0.5 rounded">
+                    {alreadyBookedMeals.dinner.ticketCode}
+                  </span>
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-amber-800">
+              💡 Vous pouvez cumuler vos réservations pour les autres services de la journée (ex: ajouter le petit-déjeuner ou le dîner).
+            </p>
+          </div>
+        )}
 
+        {/* Inputs agent */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -448,33 +706,37 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
               {verifiedUser && (
                 <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  <span>{t('authorizedAgentBadge')} ({verifiedUser.badgeNumber})</span>
+                  <span>Validé</span>
                 </span>
               )}
             </div>
+
             <input
               type="text"
               required
               value={staffName}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder={t('fullNameOrBadgePlaceholder')}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm font-medium"
+              placeholder="Ex: Claire Bernard ou AG-101"
+              className={`w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border transition ${
+                verifiedUser
+                  ? 'border-emerald-500 bg-emerald-50/20 text-emerald-950 font-bold ring-2 ring-emerald-500/20'
+                  : 'border-slate-300 focus:ring-2 focus:ring-emerald-500'
+              }`}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
-              <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-              <span>{t('departmentLabel')} <span className="text-rose-500">*</span></span>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              {t('departmentLabel')} <span className="text-rose-500">*</span>
             </label>
             <select
               value={staffDepartment}
               onChange={(e) => setStaffDepartment(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm font-medium bg-white"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-white font-medium text-slate-800"
             >
               {DEPARTMENTS.map((dept) => (
                 <option key={dept} value={dept}>
-                  {language === 'ar' ? DEPARTMENTS_AR[dept] || dept : dept}
+                  {dept}
                 </option>
               ))}
             </select>
@@ -488,311 +750,775 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
               type="email"
               value={staffEmail}
               onChange={(e) => setStaffEmail(e.target.value)}
-              placeholder={t('emailPlaceholder')}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm font-medium"
+              placeholder="agent@etablissement.fr"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300"
             />
           </div>
         </div>
       </div>
 
-      {/* 2. Composition du plateau */}
+      {/* ==================================================== */}
+      {/* 2. CHOIX DU SERVICE / TYPE DE REPAS */}
+      {/* ==================================================== */}
       <div className="mt-8 pt-6 border-t border-slate-100">
-        <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Utensils className="w-4 h-4 text-emerald-600" />
-          <span>{t('stepMenuSelection')}</span>
-        </h4>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+          <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Utensils className="w-4 h-4 text-emerald-600" />
+            <span>2. Quel repas souhaitez-vous réserver ?</span>
+          </h4>
 
-        {/* Choix de l'entrée */}
-        <div className="mb-6">
-          <label className="block text-xs font-bold text-slate-700 mb-2">
-            {t('chooseEntreeLabel')} :
-          </label>
+          {/* Switcher Formule Simple vs Pack 3 Repas */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setBookingMode('single')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                bookingMode === 'single'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Repas par Repas
+            </button>
+            <button
+              type="button"
+              onClick={() => setBookingMode('all-day')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                bookingMode === 'all-day'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-emerald-700 hover:text-emerald-900'
+              }`}
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>Pack 3 Repas (Journée)</span>
+            </button>
+          </div>
+        </div>
+
+        {bookingMode === 'single' ? (
+          /* Sélecteur de repas en 3 tuiles */
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {menu.entrees.map((entree) => {
-              const isSelected = selectedEntreeId === entree.id;
-              return (
-                <button
-                  type="button"
-                  key={entree.id}
-                  onClick={() => setSelectedEntreeId(entree.id)}
-                  className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/30 text-emerald-950'
-                      : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    {entree.imageUrl && (
-                      <img
-                        src={entree.imageUrl}
-                        alt={entree.name}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">{entree.name}</span>
-                        {isSelected ? (
-                          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                            <Check className="w-3 h-3" />
-                          </span>
-                        ) : (
-                          <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
-                        )}
-                      </div>
-                      {entree.isVegetarian && (
-                        <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
-                          &bull; {t('vegetarianBadge')}
-                        </span>
+            {/* Petit-déjeuner */}
+            <button
+              type="button"
+              onClick={() => setActiveMealType('breakfast')}
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between ${
+                activeMealType === 'breakfast'
+                  ? 'border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/30 text-amber-950'
+                  : 'border-slate-200 hover:border-amber-300 bg-white text-slate-700'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg">
+                  <Sun className="w-5 h-5" />
+                </div>
+                {activeMealType === 'breakfast' ? (
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs">
+                    <Check className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <span className="w-5 h-5 rounded-full border border-slate-300" />
+                )}
+              </div>
+              <div className="mt-3">
+                <span className="font-black text-sm block">1. Petit-déjeuner</span>
+                <span className="text-xs text-slate-500 block mt-0.5">
+                  Matin &bull; 07h00 - 09h00
+                </span>
+                {alreadyBookedMeals.breakfast && (
+                  <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900">
+                    Déjà réservé pour ce matin
+                  </span>
+                )}
+              </div>
+            </button>
+
+            {/* Repas de midi */}
+            <button
+              type="button"
+              onClick={() => setActiveMealType('lunch')}
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between ${
+                activeMealType === 'lunch'
+                  ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/30 text-emerald-950'
+                  : 'border-slate-200 hover:border-emerald-300 bg-white text-slate-700'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg">
+                  <Utensils className="w-5 h-5" />
+                </div>
+                {activeMealType === 'lunch' ? (
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
+                    <Check className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <span className="w-5 h-5 rounded-full border border-slate-300" />
+                )}
+              </div>
+              <div className="mt-3">
+                <span className="font-black text-sm block">2. Repas de midi (Déjeuner)</span>
+                <span className="text-xs text-slate-500 block mt-0.5">
+                  Midi &bull; 11h45 - 13h45
+                </span>
+                {alreadyBookedMeals.lunch && (
+                  <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-900">
+                    Déjà réservé pour ce midi
+                  </span>
+                )}
+              </div>
+            </button>
+
+            {/* Dîner */}
+            <button
+              type="button"
+              onClick={() => setActiveMealType('dinner')}
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between ${
+                activeMealType === 'dinner'
+                  ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-600/30 text-indigo-950'
+                  : 'border-slate-200 hover:border-indigo-300 bg-white text-slate-700'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
+                  <Moon className="w-5 h-5" />
+                </div>
+                {activeMealType === 'dinner' ? (
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">
+                    <Check className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <span className="w-5 h-5 rounded-full border border-slate-300" />
+                )}
+              </div>
+              <div className="mt-3">
+                <span className="font-black text-sm block">3. Dîner (Repas du soir)</span>
+                <span className="text-xs text-slate-500 block mt-0.5">
+                  Soir &bull; 19h00 - 21h00
+                </span>
+                {alreadyBookedMeals.dinner && (
+                  <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-900">
+                    Déjà réservé pour ce soir
+                  </span>
+                )}
+              </div>
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200 flex items-center gap-3">
+            <Sparkles className="w-6 h-6 text-emerald-600 shrink-0" />
+            <div className="text-xs text-slate-700">
+              <strong className="block text-sm font-black text-slate-900">
+                Mode « Pack Journée Complète (3 repas) » Activé
+              </strong>
+              Configurez vos choix pour le petit-déjeuner, le repas de midi et le dîner. Un simple clic créera vos 3 réservations.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ==================================================== */}
+      {/* 3. COMPOSITION DES PLATS SELON LE REPAS CHOISI */}
+      {/* ==================================================== */}
+      <div className="mt-8 pt-6 border-t border-slate-100">
+        {/* A. SI MODE PETIT-DÉJEUNER SEUL */}
+        {bookingMode === 'single' && activeMealType === 'breakfast' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                <Sun className="w-4 h-4 text-amber-500" />
+                <span>3. Choisissez votre Formule Petit-déjeuner :</span>
+              </label>
+              <span className="text-xs text-slate-500">Boisson chaude &amp; jus inclus</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {breakfastItems.map((item) => {
+                const isSelected = selectedBreakfastId === item.id;
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => setSelectedBreakfastId(item.id)}
+                    className={`p-4 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/30 text-amber-950'
+                        : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                    }`}
+                  >
+                    <div>
+                      {item.imageUrl && (
+                        <div className="h-28 w-full rounded-xl overflow-hidden mb-3 bg-slate-100">
+                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                        </div>
                       )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Choix du plat chaud (AVEC MISE EN VALEUR DU PLAT DU JOUR) */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-xs font-bold text-slate-700">
-              {t('chooseMainDishLabel')} :
-            </label>
-            <span className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-              <span>{t('featuredDishBadge')}</span>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {menu.plats.map((plat) => {
-              const isSelected = selectedPlatId === plat.id;
-              const isStarDish = plat.id === platDuJourId || plat.isPlatDuJour;
-
-              return (
-                <button
-                  type="button"
-                  key={plat.id}
-                  onClick={() => setSelectedPlatId(plat.id)}
-                  className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/30 text-emerald-950'
-                      : isStarDish
-                      ? 'border-amber-400/80 bg-amber-50/30 hover:border-amber-400 text-slate-800'
-                      : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
-                  }`}
-                >
-                  {isStarDish && (
-                    <div className="mb-2 inline-flex items-center gap-1 bg-amber-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded-md self-start">
-                      <Star className="w-3 h-3 fill-slate-950" />
-                      <span>{t('featuredDishBadge')}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-start gap-2.5">
-                    {plat.imageUrl && (
-                      <img
-                        src={plat.imageUrl}
-                        alt={plat.name}
-                        className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm leading-snug">{plat.name}</span>
+                        <span className="font-bold text-xs sm:text-sm">{item.name}</span>
                         {isSelected ? (
-                          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
                             <Check className="w-3 h-3" />
                           </span>
                         ) : (
                           <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
                         )}
                       </div>
-
-                      <div className="mt-1 flex items-center gap-2">
-                        {plat.isVegetarian ? (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
-                            {t('vegetarianBadge')}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-slate-500">
-                            {plat.calories ? `~${plat.calories} ${t('caloriesLabel')}` : ''}
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">
+                        {item.description}
+                      </p>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Choix du dessert */}
-        <div className="mb-6">
-          <label className="block text-xs font-bold text-slate-700 mb-2">
-            {t('chooseDessertLabel')} :
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {menu.desserts.map((dessert) => {
-              const isSelected = selectedDessertId === dessert.id;
-              return (
-                <button
-                  type="button"
-                  key={dessert.id}
-                  onClick={() => setSelectedDessertId(dessert.id)}
-                  className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/30 text-emerald-950'
-                      : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    {dessert.imageUrl && (
-                      <img
-                        src={dessert.imageUrl}
-                        alt={dessert.name}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
+                    <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-400">
+                      {item.calories ? `~${item.calories} kcal` : ''}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Créneau horaire du petit-déjeuner */}
+            <div className="pt-2">
+              <label className="block text-xs font-bold text-slate-700 mb-2">
+                Créneau de passage au réfectoire pour le petit-déjeuner :
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {BREAKFAST_TIME_SLOTS.map((slot) => (
+                  <button
+                    type="button"
+                    key={slot}
+                    onClick={() => setBreakfastTimeSlot(slot)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                      breakfastTimeSlot === slot
+                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* B. SI MODE REPAS DE MIDI SEUL */}
+        {bookingMode === 'single' && activeMealType === 'lunch' && (
+          <div className="space-y-6">
+            {/* 1. Choix entrée */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                {t('chooseEntreeLabel')} :
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {menu.entrees.map((entree) => {
+                  const isSelected = selectedEntreeId === entree.id;
+                  return (
+                    <button
+                      type="button"
+                      key={entree.id}
+                      onClick={() => setSelectedEntreeId(entree.id)}
+                      className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/30 text-emerald-950'
+                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        {entree.imageUrl && (
+                          <img
+                            src={entree.imageUrl}
+                            alt={entree.name}
+                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="font-bold text-xs sm:text-sm">{entree.name}</span>
+                            {isSelected ? (
+                              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            ) : (
+                              <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
+                            )}
+                          </div>
+                          {entree.isVegetarian && (
+                            <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                              &bull; {t('vegetarianBadge')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Choix plat chaud avec mise en valeur du plat du jour */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                  {t('chooseMainDishLabel')} :
+                </label>
+                <span className="text-[11px] text-amber-700 font-bold flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                  <span>{t('featuredDishBadge')}</span>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {menu.plats.map((plat) => {
+                  const isSelected = selectedPlatId === plat.id;
+                  const isStarDish = plat.id === platDuJourId || plat.isPlatDuJour;
+
+                  return (
+                    <button
+                      type="button"
+                      key={plat.id}
+                      onClick={() => setSelectedPlatId(plat.id)}
+                      className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/30 text-emerald-950'
+                          : isStarDish
+                          ? 'border-amber-400/80 bg-amber-50/30 hover:border-amber-400 text-slate-800'
+                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
+                      }`}
+                    >
+                      {isStarDish && (
+                        <div className="mb-2 inline-flex items-center gap-1 bg-amber-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded-md self-start">
+                          <Star className="w-3 h-3 fill-slate-950" />
+                          <span>{t('featuredDishBadge')}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-2.5">
+                        {plat.imageUrl && (
+                          <img
+                            src={plat.imageUrl}
+                            alt={plat.name}
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="font-bold text-xs sm:text-sm leading-snug">{plat.name}</span>
+                            {isSelected ? (
+                              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            ) : (
+                              <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            {plat.isVegetarian && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                                🌱 Végétarien
+                              </span>
+                            )}
+                            {plat.calories && (
+                              <span className="text-[10px] text-slate-500">~{plat.calories} kcal</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Choix dessert */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                {t('chooseDessertLabel')} :
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {menu.desserts.map((dessert) => {
+                  const isSelected = selectedDessertId === dessert.id;
+                  return (
+                    <button
+                      type="button"
+                      key={dessert.id}
+                      onClick={() => setSelectedDessertId(dessert.id)}
+                      className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/30 text-emerald-950'
+                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        {dessert.imageUrl && (
+                          <img
+                            src={dessert.imageUrl}
+                            alt={dessert.name}
+                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="font-bold text-xs sm:text-sm">{dessert.name}</span>
+                            {isSelected ? (
+                              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            ) : (
+                              <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Créneau horaire du midi */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2">
+                Créneau de passage au réfectoire pour le déjeuner :
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {LUNCH_TIME_SLOTS.map((slot) => (
+                  <button
+                    type="button"
+                    key={slot}
+                    onClick={() => setLunchTimeSlot(slot)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                      lunchTimeSlot === slot
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* C. SI MODE DÎNER (SOIR) SEUL */}
+        {bookingMode === 'single' && activeMealType === 'dinner' && (
+          <div className="space-y-6">
+            {/* Entrées du soir */}
+            {dinnerEntrees.length > 0 && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  Entrée ou Potage léger du soir :
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {dinnerEntrees.map((entree) => {
+                    const isSelected = selectedDinnerEntreeId === entree.id;
+                    return (
+                      <button
+                        type="button"
+                        key={entree.id}
+                        onClick={() => setSelectedDinnerEntreeId(entree.id)}
+                        className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/30 text-indigo-950'
+                            : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="font-bold text-xs sm:text-sm">{entree.name}</span>
+                          {isSelected ? (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                              <Check className="w-3 h-3" />
+                            </span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Plats du soir */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                Plat chaud du dîner :
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {dinnerPlats.map((plat) => {
+                  const isSelected = selectedDinnerPlatId === plat.id;
+                  return (
+                    <button
+                      type="button"
+                      key={plat.id}
+                      onClick={() => setSelectedDinnerPlatId(plat.id)}
+                      className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-600/30 text-indigo-950'
+                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
+                      }`}
+                    >
                       <div className="flex items-start justify-between gap-1">
-                        <span className="font-bold text-xs sm:text-sm">{dessert.name}</span>
+                        <span className="font-bold text-xs sm:text-sm">{plat.name}</span>
                         {isSelected ? (
-                          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
                             <Check className="w-3 h-3" />
                           </span>
                         ) : (
                           <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
                         )}
                       </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{plat.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Desserts du soir */}
+            {dinnerDesserts.length > 0 && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  Dessert ou Fruit du soir :
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {dinnerDesserts.map((dessert) => {
+                    const isSelected = selectedDinnerDessertId === dessert.id;
+                    return (
+                      <button
+                        type="button"
+                        key={dessert.id}
+                        onClick={() => setSelectedDinnerDessertId(dessert.id)}
+                        className={`p-3 rounded-2xl text-left rtl:text-right border transition relative flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/30 text-indigo-950'
+                            : 'border-slate-200 hover:border-slate-300 bg-slate-50/40 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="font-bold text-xs sm:text-sm">{dessert.name}</span>
+                          {isSelected ? (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                              <Check className="w-3 h-3" />
+                            </span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full border border-slate-300 shrink-0" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Créneau horaire du soir */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2">
+                Créneau de passage au réfectoire pour le dîner :
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DINNER_TIME_SLOTS.map((slot) => (
+                  <button
+                    type="button"
+                    key={slot}
+                    onClick={() => setDinnerTimeSlot(slot)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                      dinnerTimeSlot === slot
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* D. SI MODE PACK 3 REPAS (TOUTE LA JOURNÉE) */}
+        {bookingMode === 'all-day' && (
+          <div className="space-y-6">
+            {/* 1. Bloc Petit-déjeuner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-sm text-amber-950 flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-amber-600" />
+                  <span>1. Petit-déjeuner (07h00 - 09h00)</span>
+                </span>
+                {alreadyBookedMeals.breakfast && (
+                  <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
+                    Déjà réservé
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {breakfastItems.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    disabled={!!alreadyBookedMeals.breakfast}
+                    onClick={() => setSelectedBreakfastId(item.id)}
+                    className={`p-3 rounded-xl text-left border text-xs font-bold transition ${
+                      selectedBreakfastId === item.id
+                        ? 'bg-amber-500 text-slate-950 border-amber-600'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-amber-400'
+                    }`}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Bloc Déjeuner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-sm text-emerald-950 flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-emerald-600" />
+                  <span>2. Déjeuner (Repas de midi : 11h45 - 13h45)</span>
+                </span>
+                {alreadyBookedMeals.lunch && (
+                  <span className="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded">
+                    Déjà réservé
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {menu.plats.map((plat) => (
+                  <button
+                    type="button"
+                    key={plat.id}
+                    disabled={!!alreadyBookedMeals.lunch}
+                    onClick={() => setSelectedPlatId(plat.id)}
+                    className={`p-3 rounded-xl text-left border text-xs font-bold transition ${
+                      selectedPlatId === plat.id
+                        ? 'bg-emerald-600 text-white border-emerald-700'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'
+                    }`}
+                  >
+                    {plat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Bloc Dîner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-sm text-indigo-950 flex items-center gap-2">
+                  <Moon className="w-4 h-4 text-indigo-600" />
+                  <span>3. Dîner (Repas du soir : 19h00 - 21h00)</span>
+                </span>
+                {alreadyBookedMeals.dinner && (
+                  <span className="text-[10px] font-bold bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded">
+                    Déjà réservé
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {dinnerPlats.map((plat) => (
+                  <button
+                    type="button"
+                    key={plat.id}
+                    disabled={!!alreadyBookedMeals.dinner}
+                    onClick={() => setSelectedDinnerPlatId(plat.id)}
+                    className={`p-3 rounded-xl text-left border text-xs font-bold transition ${
+                      selectedDinnerPlatId === plat.id
+                        ? 'bg-indigo-600 text-white border-indigo-700'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'
+                    }`}
+                  >
+                    {plat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 3. Créneau et remarques */}
+      {/* ==================================================== */}
+      {/* 4. REMARQUES DIÉTÉTIQUES & VALIDATION */}
+      {/* ==================================================== */}
       <div className="mt-8 pt-6 border-t border-slate-100">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{t('timeSlotLabel')} :</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {TIME_SLOTS.map((slot) => (
-                <button
-                  type="button"
-                  key={slot}
-                  onClick={() => setTimeSlot(slot)}
-                  className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition ${
-                    timeSlot === slot
-                      ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
-                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
-          </div>
+        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+          {t('dietaryNotesLabel')} (Optionnel)
+        </label>
+        <input
+          type="text"
+          value={dietaryNotes}
+          onChange={(e) => setDietaryNotes(e.target.value)}
+          placeholder="Ex: Sans sel ajouté, allergies, intolérance au gluten..."
+          className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300"
+        />
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{t('dietaryNotesLabel')} :</span>
-            </label>
-            <input
-              type="text"
-              value={dietaryNotes}
-              onChange={(e) => setDietaryNotes(e.target.value)}
-              placeholder={t('dietaryNotesPlaceholder')}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-xs sm:text-sm font-medium"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* SOUMISSION DU FORMULAIRE */}
-      <div className="mt-8 pt-6 border-t border-slate-200">
-        {!timeStatus.isOpen && (
-          <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-xs sm:text-sm">
-              <p className="font-extrabold text-amber-950">
-                {t('outsideHoursError')}
-              </p>
-              <p className="mt-1 text-amber-800">
-                {t('bannerPendingSubtitle', { start: timeStatus.startTime, end: timeStatus.endTime })}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {isFull && timeStatus.isOpen && (
-          <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 flex items-start gap-3">
-            <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-            <div className="text-xs sm:text-sm">
-              <p className="font-extrabold text-rose-950">{t('capacityFullError')}</p>
-              <p className="mt-1 text-rose-800">
-                {t('placesTotal', { total: capacityTotal })}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{t('presentAtCounterNotice')}</span>
+        {/* Bouton de confirmation */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-xs text-slate-500">
+            {bookingMode === 'all-day'
+              ? '✨ Valide jusqu’à 3 réservations (Petit-déjeuner + Midi + Dîner) avec génération de tickets respectifs.'
+              : `Génération immédiate d’un ticket avec QR Code pour votre ${
+                  activeMealType === 'breakfast'
+                    ? 'petit-déjeuner'
+                    : activeMealType === 'dinner'
+                    ? 'dîner'
+                    : 'repas de midi'
+                }.`}
           </div>
 
           <button
             type="submit"
-            disabled={!isBookingAllowed || isSubmitting}
-            className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all shadow-md ${
-              isBookingAllowed && !isSubmitting
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 cursor-pointer hover:scale-[1.01]'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/50'
+            disabled={isSubmitting || !timeStatus.isOpen || isFull}
+            className={`w-full sm:w-auto px-8 py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition transform hover:scale-[1.02] active:scale-[0.98] ${
+              !timeStatus.isOpen || isFull
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                : bookingMode === 'all-day'
+                ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 text-white shadow-emerald-500/25'
+                : activeMealType === 'breakfast'
+                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/25'
+                : activeMealType === 'dinner'
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/25'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/25'
             }`}
           >
-            {!timeStatus.isOpen ? (
-              <>
-                <Lock className="w-4 h-4 text-slate-400" />
-                <span>{t('bookingsClosed')} ({timeStatus.startTime} - {timeStatus.endTime})</span>
-              </>
-            ) : isFull ? (
-              <>
-                <Lock className="w-4 h-4 text-slate-400" />
-                <span>{t('capacityFullError')} ({capacityTotal}/{capacityTotal})</span>
-              </>
-            ) : isSubmitting ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>{t('submittingBtn')}</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-5 h-5 text-white" />
-                <span>{t('submitBookingBtn')}</span>
-              </>
-            )}
+            <Sparkles className="w-4 h-4" />
+            <span>
+              {isSubmitting
+                ? 'Validation en cours...'
+                : bookingMode === 'all-day'
+                ? 'Valider mes 3 Repas de la Journée'
+                : activeMealType === 'breakfast'
+                ? 'Valider mon Petit-déjeuner'
+                : activeMealType === 'dinner'
+                ? 'Valider mon Dîner'
+                : 'Valider mon Repas de midi'}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Modal Scanner de badge agent pour réservation 100% sans saisie */}
-      <UserBadgeScannerModal
-        isOpen={isBadgeScannerOpen}
-        onClose={() => setIsBadgeScannerOpen(false)}
-        onUserIdentified={(user) => applyUserToForm(user, true)}
-        authorizedUsers={authorizedUsersList}
-      />
+      {/* Modal Scanner de badge */}
+      {isBadgeScannerOpen && (
+        <UserBadgeScannerModal
+          isOpen={isBadgeScannerOpen}
+          onClose={() => setIsBadgeScannerOpen(false)}
+          onBadgeScanned={(scannedBadge) => {
+            const clean = scannedBadge.trim().toLowerCase();
+            const matched = authorizedUsersList.find(
+              (u) =>
+                u.badgeNumber.trim().toLowerCase() === clean ||
+                u.fullName.toLowerCase() === clean
+            );
+            if (matched) {
+              applyUserToForm(matched, true);
+            } else {
+              setStaffName(scannedBadge);
+            }
+            setIsBadgeScannerOpen(false);
+          }}
+        />
+      )}
     </form>
   );
 };

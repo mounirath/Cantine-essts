@@ -11,10 +11,21 @@ export function exportReservationsToExcel(
   // 1. Feuille principale : Liste détaillée des inscrits
   const confirmedList = reservations.filter((r) => r.status !== 'cancelled');
 
+  const allPlats = [...menu.plats, ...(menu.breakfastItems || []), ...(menu.dinnerPlats || [])];
+  const allEntrees = [...menu.entrees, ...(menu.dinnerEntrees || [])];
+  const allDesserts = [...menu.desserts, ...(menu.dinnerDesserts || [])];
+
   const rowsData = reservations.map((r) => {
-    const plat = menu.plats.find((p) => p.id === r.selectedPlatId);
-    const entree = menu.entrees.find((e) => e.id === r.selectedEntreeId);
-    const dessert = menu.desserts.find((d) => d.id === r.selectedDessertId);
+    const plat = allPlats.find((p) => p.id === r.selectedPlatId);
+    const entree = allEntrees.find((e) => e.id === r.selectedEntreeId);
+    const dessert = allDesserts.find((d) => d.id === r.selectedDessertId);
+
+    const mealTypeLabel =
+      r.mealType === 'breakfast'
+        ? 'Petit-déjeuner'
+        : r.mealType === 'dinner'
+        ? 'Dîner (Soir)'
+        : 'Repas de midi (Déjeuner)';
 
     const servedTimeStr = r.servedAt
       ? new Date(r.servedAt).toLocaleTimeString('fr-FR', {
@@ -25,10 +36,11 @@ export function exportReservationsToExcel(
 
     return {
       'N° Retrait': r.ticketCode,
+      'Service': mealTypeLabel,
       'Nom et Prénom': r.staffName,
       'Service / Pôle': r.staffDepartment,
       'Email professionnel': r.staffEmail || '',
-      'Plat principal': plat ? plat.name : 'Plat du jour',
+      'Plat principal / Formule': plat ? plat.name : 'Plat principal',
       'Option Végétarienne': plat?.isVegetarian ? 'OUI' : 'NON',
       'Entrée': entree ? entree.name : '-',
       'Dessert': dessert ? dessert.name : '-',
@@ -46,6 +58,7 @@ export function exportReservationsToExcel(
   // Largeurs de colonnes optimisées
   wsInscrits['!cols'] = [
     { wch: 12 }, // N° Retrait
+    { wch: 22 }, // Service
     { wch: 22 }, // Nom
     { wch: 26 }, // Service
     { wch: 26 }, // Email
@@ -61,8 +74,12 @@ export function exportReservationsToExcel(
   ];
 
   // 2. Feuille Synthèse Cuisine & Statistiques
+  const breakfastCount = confirmedList.filter((r) => r.mealType === 'breakfast').length;
+  const lunchCount = confirmedList.filter((r) => (r.mealType || 'lunch') === 'lunch').length;
+  const dinnerCount = confirmedList.filter((r) => r.mealType === 'dinner').length;
+
   const dishesCounts: Record<string, { name: string; isVeg: string; count: number }> = {};
-  menu.plats.forEach((p) => {
+  allPlats.forEach((p) => {
     dishesCounts[p.id] = { name: p.name, isVeg: p.isVegetarian ? 'OUI' : 'NON', count: 0 };
   });
 
@@ -80,20 +97,21 @@ export function exportReservationsToExcel(
   const summaryData = [
     { 'Métrique': 'Établissement', 'Valeur': settings.establishmentName },
     { 'Métrique': 'Date du service', 'Valeur': formatFrenchDate(dateStr) },
-    { 'Métrique': 'Plage horaire cantine', 'Valeur': settings.serviceHours },
-    { 'Métrique': 'Plage de réservation', 'Valeur': `${settings.bookingWindowStart} - ${settings.bookingWindowEnd}` },
     { 'Métrique': 'Capacité maximale (couverts)', 'Valeur': settings.capacityPerDay },
-    { 'Métrique': 'Total réservations actives', 'Valeur': confirmedList.length },
+    { 'Métrique': 'Total réservations actives (tous services)', 'Valeur': confirmedList.length },
+    { 'Métrique': '  • Réservations Petit-déjeuner', 'Valeur': breakfastCount },
+    { 'Métrique': '  • Réservations Déjeuner (Midi)', 'Valeur': lunchCount },
+    { 'Métrique': '  • Réservations Dîner (Soir)', 'Valeur': dinnerCount },
     { 'Métrique': 'Repas déjà servis / émargés', 'Valeur': confirmedList.filter((r) => r.status === 'served').length },
     { 'Métrique': 'Repas restants à servir', 'Valeur': confirmedList.filter((r) => r.status !== 'served').length },
-    { 'Métrique': 'Places restantes libres', 'Valeur': Math.max(0, settings.capacityPerDay - confirmedList.length) },
-    { 'Métrique': 'Taux d’occupation', 'Valeur': `${Math.round((confirmedList.length / settings.capacityPerDay) * 100)} %` },
     { 'Métrique': '', 'Valeur': '' },
-    { 'Métrique': '--- RÉPARTITION PAR PLAT CHAUD ---', 'Valeur': '--- PORTIONS À PRODUIRE ---' },
-    ...Object.values(dishesCounts).map((item) => ({
-      'Métrique': `${item.name} (${item.isVeg === 'OUI' ? 'Végétarien' : 'Classique'})`,
-      'Valeur': item.count,
-    })),
+    { 'Métrique': '--- RÉPARTITION PAR FORMULE / PLAT ---', 'Valeur': '--- PORTIONS ---' },
+    ...Object.values(dishesCounts)
+      .filter((item) => item.count > 0)
+      .map((item) => ({
+        'Métrique': `${item.name} (${item.isVeg === 'OUI' ? 'Végétarien' : 'Classique'})`,
+        'Valeur': item.count,
+      })),
     { 'Métrique': '', 'Valeur': '' },
     { 'Métrique': '--- RÉPARTITION PAR SERVICE / PÔLE ---', 'Valeur': '--- EFFECTIFS ---' },
     ...Object.entries(deptCounts).map(([dept, cnt]) => ({
@@ -102,15 +120,14 @@ export function exportReservationsToExcel(
     })),
   ];
 
-  const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-  wsSummary['!cols'] = [{ wch: 45 }, { wch: 30 }];
+  const wsSynthese = XLSX.utils.json_to_sheet(summaryData);
+  wsSynthese['!cols'] = [{ wch: 45 }, { wch: 25 }];
 
-  // 3. Construction du classeur Excel (.xlsx)
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsInscrits, 'Inscrits du Jour');
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Synthèse Cuisine & Stats');
+  // Création du classeur Excel
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, wsInscrits, 'Inscrits du Jour');
+  XLSX.utils.book_append_sheet(workbook, wsSynthese, 'Synthèse Cuisine & Services');
 
-  // 4. Téléchargement direct
-  const filename = `repas_personnel_${settings.establishmentName.replace(/[^a-zA-Z0-9]/g, '_')}_${dateStr}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  // Téléchargement
+  XLSX.writeFile(workbook, `repas_personnel_${dateStr}.xlsx`);
 }

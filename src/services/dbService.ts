@@ -168,7 +168,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   capacityPerDay: 75,
   bookingWindowStart: '08:00',
   bookingWindowEnd: '10:00',
+  breakfastServiceHours: '07h00 - 09h00',
   serviceHours: '11h45 - 13h45',
+  dinnerServiceHours: '19h00 - 21h00',
   adminPasswordHash: '',
   allowCancellation: true,
   kitchenContactEmail: 'restauration@essts.dz',
@@ -377,6 +379,127 @@ export function createDefaultMenu(dateStr: string): DailyMenu {
         imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80',
       },
     ],
+    // Formules & Éléments du Petit-déjeuner
+    breakfastItems: [
+      {
+        id: 'bf-1',
+        category: 'plat',
+        mealType: 'breakfast',
+        name: 'Formule Complète Énergie (Sportif & Cadre)',
+        description: 'Œufs brouillés aux fines herbes, pain complet grillé au levain, beurre AOP, yaourt grec au miel & granola, boisson chaude au choix et pur jus d’orange pressé.',
+        allergens: ['Œufs', 'Lait', 'Gluten'],
+        isVegetarian: true,
+        calories: 460,
+        imageUrl: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=80',
+      },
+      {
+        id: 'bf-2',
+        category: 'plat',
+        mealType: 'breakfast',
+        name: 'Formule Traditionnelle Continentale',
+        description: 'Croissant pur beurre & pain au chocolat dorés du matin, demi-baguette croustillante, confitures artisanales fraise/abricot, café arabica ou thé bio à la menthe.',
+        allergens: ['Gluten', 'Lait'],
+        isVegetarian: true,
+        calories: 380,
+        imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600&q=80',
+      },
+      {
+        id: 'bf-3',
+        category: 'plat',
+        mealType: 'breakfast',
+        name: 'Formule Légère & Vitamines Bio',
+        description: 'Fromage blanc fermier battu, graines de chia et flocons d’avoine, assiette de fruits frais de saison découpés, thé vert matcha et pain de seigle toasté.',
+        allergens: ['Lait', 'Gluten'],
+        isVegetarian: true,
+        calories: 290,
+        imageUrl: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?auto=format&fit=crop&w=600&q=80',
+      },
+    ],
+    // Dîner (Repas du soir)
+    dinnerEntrees: [
+      {
+        id: 'din-ent-1',
+        category: 'entree',
+        mealType: 'dinner',
+        name: 'Velouté velouté de potiron & éclats de marrons rôtis',
+        description: 'Soupe onctueuse de potiron cultivé en maraîchage local, crème légère de Bresse et ciboulette fraîche.',
+        allergens: ['Lait'],
+        isVegetarian: true,
+        calories: 130,
+        imageUrl: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=80',
+      },
+      {
+        id: 'din-ent-2',
+        category: 'entree',
+        mealType: 'dinner',
+        name: 'Salade automnale du soir aux cerneaux de noix & dés de comté',
+        description: 'Jeunes pousses de mâche, betteraves rôties au four, vinaigrette à l’huile de noix et copeaux de comté affiné 18 mois.',
+        allergens: ['Lait', 'Fruits à coque'],
+        isVegetarian: true,
+        calories: 160,
+        imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80',
+      },
+    ],
+    dinnerPlats: [
+      {
+        id: 'din-plat-1',
+        category: 'plat',
+        mealType: 'dinner',
+        name: 'Filet de colin d’Alaska poché & tombée de poireaux fondants',
+        description: 'Dos de colin cuit à basse température au court-bouillon aromatisé, écrasé de carottes au cumin et émulsion légère citron-ciboulette.',
+        allergens: ['Poisson', 'Lait'],
+        isVegetarian: false,
+        isPlatDuJour: true,
+        calories: 390,
+        imageUrl: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=600&q=80',
+      },
+      {
+        id: 'din-plat-2',
+        category: 'plat',
+        mealType: 'dinner',
+        name: 'Émincé de dinde fermière aux girolles & riz sauvage',
+        description: 'Filet de dinde française dorée à la poêle, sauce crémeuse aux champignons des bois et timbale de riz complet camarguais.',
+        allergens: ['Lait'],
+        isVegetarian: false,
+        calories: 430,
+        imageUrl: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=600&q=80',
+      },
+      {
+        id: 'din-plat-3',
+        category: 'plat',
+        mealType: 'dinner',
+        name: 'Curry doux de pois chiches, épinards & patate douce',
+        description: 'Pois chiches fondants mijotés au lait de coco et curcuma bio, pousses d’épinards fraîches et riz basmati au jasmin.',
+        allergens: [],
+        isVegetarian: true,
+        calories: 360,
+        imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+      },
+    ],
+    dinnerDesserts: [
+      {
+        id: 'din-des-1',
+        category: 'dessert',
+        mealType: 'dinner',
+        name: 'Compote tiède de pommes et poires à la vanille Bourbon',
+        description: 'Fruits d’automne compotés sans sucres ajoutés, gousse de vanille de Madagascar et crumble d’avoine léger.',
+        allergens: ['Gluten'],
+        isVegetarian: true,
+        calories: 120,
+        imageUrl: 'https://images.unsplash.com/photo-1519869325930-281384150729?auto=format&fit=crop&w=600&q=80',
+      },
+      {
+        id: 'din-des-2',
+        category: 'dessert',
+        mealType: 'dinner',
+        name: 'Riz au lait crémeux traditionnel à la cannelle de Ceylan',
+        description: 'Riz rond cuit lentement dans le lait entier fermier vanillé, touche de zeste d’orange et cannelle saupoudrée.',
+        allergens: ['Lait'],
+        isVegetarian: true,
+        calories: 180,
+        imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80',
+      },
+    ],
     breadBeverageIncluded: true,
     chefNote: 'Tous nos plats sont préparés le matin même par la brigade de cuisine avec des produits frais et locaux.',
   };
@@ -462,6 +585,7 @@ export function createSecondaryMenu(dateStr: string): DailyMenu {
 }
 
 const INITIAL_RESERVATIONS_SAMPLE: Reservation[] = [
+  // Repas de midi (Déjeuner)
   {
     id: 'res-101',
     date: getTodayDateString(),
@@ -469,6 +593,7 @@ const INITIAL_RESERVATIONS_SAMPLE: Reservation[] = [
     staffName: 'Claire Bernard',
     staffDepartment: 'Ressources Humaines',
     staffEmail: 'claire.bernard@etablissement.fr',
+    mealType: 'lunch',
     selectedEntreeId: 'entree-1',
     selectedPlatId: 'plat-1',
     selectedDessertId: 'dessert-1',
@@ -484,6 +609,7 @@ const INITIAL_RESERVATIONS_SAMPLE: Reservation[] = [
     staffName: 'Thomas Martin',
     staffDepartment: 'Pôle Technique & Informatique',
     staffEmail: 'thomas.martin@etablissement.fr',
+    mealType: 'lunch',
     selectedEntreeId: 'entree-3',
     selectedPlatId: 'plat-3',
     selectedDessertId: 'dessert-2',
@@ -499,6 +625,7 @@ const INITIAL_RESERVATIONS_SAMPLE: Reservation[] = [
     staffName: 'Dr. Sophie Dubois',
     staffDepartment: 'Service Médical & Soins',
     staffEmail: 'sophie.dubois@etablissement.fr',
+    mealType: 'lunch',
     selectedEntreeId: 'entree-1',
     selectedPlatId: 'plat-2',
     selectedDessertId: 'dessert-3',
@@ -515,6 +642,7 @@ const INITIAL_RESERVATIONS_SAMPLE: Reservation[] = [
     staffName: 'Marc Vasseur',
     staffDepartment: 'Enseignement & Formation',
     staffEmail: 'marc.vasseur@etablissement.fr',
+    mealType: 'lunch',
     selectedEntreeId: 'entree-2',
     selectedPlatId: 'plat-2',
     selectedDessertId: 'dessert-1',
@@ -522,6 +650,83 @@ const INITIAL_RESERVATIONS_SAMPLE: Reservation[] = [
     dietaryNotes: '',
     status: 'confirmed',
     ticketCode: 'REP-744',
+  },
+  // Petit-déjeuner
+  {
+    id: 'res-pdj-101',
+    date: getTodayDateString(),
+    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+    staffName: 'Claire Bernard',
+    staffDepartment: 'Ressources Humaines',
+    staffEmail: 'claire.bernard@etablissement.fr',
+    mealType: 'breakfast',
+    selectedPlatId: 'bf-1',
+    timeSlot: '07h30 - 08h00',
+    dietaryNotes: '',
+    status: 'served',
+    ticketCode: 'PDJ-101',
+    servedAt: new Date(Date.now() - 3600000 * 2.5).toISOString(),
+  },
+  {
+    id: 'res-pdj-102',
+    date: getTodayDateString(),
+    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    staffName: 'Antoine Morel',
+    staffDepartment: 'Logistique & Services Généraux',
+    staffEmail: 'antoine.morel@etablissement.fr',
+    mealType: 'breakfast',
+    selectedPlatId: 'bf-2',
+    timeSlot: '08h00 - 08h30',
+    dietaryNotes: '',
+    status: 'confirmed',
+    ticketCode: 'PDJ-102',
+  },
+  {
+    id: 'res-pdj-103',
+    date: getTodayDateString(),
+    createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
+    staffName: 'Julie Renard',
+    staffDepartment: 'Administration & Finances',
+    staffEmail: 'julie.renard@etablissement.fr',
+    mealType: 'breakfast',
+    selectedPlatId: 'bf-3',
+    timeSlot: '08h30 - 09h00',
+    dietaryNotes: 'Sans gluten',
+    status: 'confirmed',
+    ticketCode: 'PDJ-103',
+  },
+  // Dîner (Repas du soir)
+  {
+    id: 'res-din-101',
+    date: getTodayDateString(),
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    staffName: 'Valérie Petit',
+    staffDepartment: 'Direction Générale',
+    staffEmail: 'valerie.petit@etablissement.fr',
+    mealType: 'dinner',
+    selectedEntreeId: 'din-ent-1',
+    selectedPlatId: 'din-plat-1',
+    selectedDessertId: 'din-des-1',
+    timeSlot: '19h30 - 20h00',
+    dietaryNotes: '',
+    status: 'confirmed',
+    ticketCode: 'DIN-201',
+  },
+  {
+    id: 'res-din-102',
+    date: getTodayDateString(),
+    createdAt: new Date(Date.now() - 1800000).toISOString(),
+    staffName: 'Marc Vasseur',
+    staffDepartment: 'Enseignement & Formation',
+    staffEmail: 'marc.vasseur@etablissement.fr',
+    mealType: 'dinner',
+    selectedEntreeId: 'din-ent-2',
+    selectedPlatId: 'din-plat-2',
+    selectedDessertId: 'din-des-2',
+    timeSlot: '20h00 - 20h30',
+    dietaryNotes: '',
+    status: 'confirmed',
+    ticketCode: 'DIN-202',
   },
 ];
 
@@ -1358,14 +1563,35 @@ export class HybridDataStore implements IDataStore {
     data: Omit<Reservation, 'id' | 'createdAt' | 'status' | 'ticketCode'>
   ): Promise<Reservation> {
     const list = await this.getReservations(data.date);
+    const mealType = data.mealType || 'lunch';
+    const cleanName = data.staffName.trim().toLowerCase();
 
+    // Empêcher les doublons uniquement pour le MÊME service du même jour
+    const alreadyBooked = list.some(
+      (r) =>
+        r.status !== 'cancelled' &&
+        r.staffName.trim().toLowerCase() === cleanName &&
+        (r.mealType || 'lunch') === mealType
+    );
+    if (alreadyBooked) {
+      const mealName =
+        mealType === 'breakfast'
+          ? 'un petit-déjeuner'
+          : mealType === 'dinner'
+          ? 'un dîner'
+          : 'un déjeuner (repas de midi)';
+      throw new Error(`Une réservation pour ${mealName} existe déjà pour ${data.staffName} aujourd'hui.`);
+    }
+
+    const prefix = mealType === 'breakfast' ? 'PDJ' : mealType === 'dinner' ? 'DIN' : 'REP';
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     const newReservation: Reservation = {
       ...data,
+      mealType,
       id: `res-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       createdAt: new Date().toISOString(),
       status: 'confirmed',
-      ticketCode: `REP-${randomSuffix}`,
+      ticketCode: `${prefix}-${randomSuffix}`,
     };
 
     list.unshift(newReservation);

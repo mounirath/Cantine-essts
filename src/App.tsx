@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { dbService, DEFAULT_ADMIN_PASSWORD_PLAIN } from './services/dbService';
-import { DailyMenu, Reservation, AppSettings } from './types';
+import { DailyMenu, Reservation, AppSettings, MealType } from './types';
 import {
   evaluateBookingWindow,
   getTodayDateString,
@@ -44,6 +44,7 @@ export default function App() {
   const [todayDateStr, setTodayDateStr] = useState<string>(getTodayDateString());
   const [menu, setMenu] = useState<DailyMenu | null>(null);
   const [selectedPlatIdForForm, setSelectedPlatIdForForm] = useState<string | undefined>(undefined);
+  const [selectedMealTypeForForm, setSelectedMealTypeForForm] = useState<MealType>('lunch');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
@@ -243,7 +244,13 @@ export default function App() {
                       </span>
                     </div>
                     <p className="text-sm font-black text-slate-900 mt-1">
-                      {activeTicket.staffName} &bull; {menu?.plats.find((p) => p.id === activeTicket.selectedPlatId)?.name || 'Plat réservé'}
+                      {activeTicket.staffName} &bull; {
+                        [
+                          ...(menu?.plats || []),
+                          ...(menu?.breakfastItems || []),
+                          ...(menu?.dinnerPlats || []),
+                        ].find((p) => p.id === activeTicket.selectedPlatId)?.name || 'Repas réservé'
+                      }
                     </p>
                   </div>
                 </div>
@@ -341,7 +348,10 @@ export default function App() {
             {/* Menu of the day section */}
             <MenuDisplay
               menu={menu}
-              onSelectPlat={(platId) => setSelectedPlatIdForForm(platId)}
+              onSelectPlat={(platId, mealType) => {
+                setSelectedPlatIdForForm(platId);
+                if (mealType) setSelectedMealTypeForForm(mealType);
+              }}
             />
 
             {/* Reservation form section */}
@@ -354,6 +364,7 @@ export default function App() {
                 onReservationComplete={handleReservationComplete}
                 todayDateStr={todayDateStr}
                 selectedPlatIdProp={selectedPlatIdForForm}
+                selectedMealTypeProp={selectedMealTypeForForm}
                 initialBadgeProp={urlBadgeParam || undefined}
                 restrictToAuthorizedUsers={settings.restrictToAuthorizedUsers}
                 onOpenRegistration={() => setIsRegistrationModalOpen(true)}
@@ -365,6 +376,40 @@ export default function App() {
         {/* B. ACTIVE TICKET VIEW */}
         {activeTab === 'ticket' && activeTicket && (
           <div className="space-y-6">
+            {/* Si l'agent a plusieurs tickets pour aujourd'hui, afficher le sélecteur */}
+            {(() => {
+              const todayTickets = historyTickets.filter((t) => t.date === todayDateStr && t.status !== 'cancelled');
+              if (todayTickets.length > 1) {
+                return (
+                  <div className="no-print max-w-xl mx-auto bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-1.5 overflow-x-auto">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase px-2 shrink-0">
+                      Vos tickets du jour :
+                    </span>
+                    {todayTickets.map((tk) => {
+                      const isCurrent = activeTicket.id === tk.id;
+                      const label = tk.mealType === 'breakfast' ? '🥐 Petit-déj' : tk.mealType === 'dinner' ? '🌙 Dîner' : '🍽️ Midi';
+                      return (
+                        <button
+                          key={tk.id}
+                          type="button"
+                          onClick={() => setActiveTicket(tk)}
+                          className={`flex-1 min-w-[130px] py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                            isCurrent
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{label}</span>
+                          <span className="font-mono text-[10px] opacity-80">({tk.ticketCode})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div className="no-print text-center max-w-lg mx-auto">
               <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
                 {t('officialTicketValidated')}

@@ -106,9 +106,13 @@ export const StaffReservationHistory: React.FC<StaffReservationHistoryProps> = (
 
   // Résoudre les détails du plat pour un ticket
   const getDishDetails = (ticket: Reservation) => {
-    const plat = currentMenu.plats.find((p) => p.id === ticket.selectedPlatId);
-    const entree = currentMenu.entrees.find((e) => e.id === ticket.selectedEntreeId);
-    const dessert = currentMenu.desserts.find((d) => d.id === ticket.selectedDessertId);
+    const allPlats = [...currentMenu.plats, ...(currentMenu.breakfastItems || []), ...(currentMenu.dinnerPlats || [])];
+    const allEntrees = [...currentMenu.entrees, ...(currentMenu.dinnerEntrees || [])];
+    const allDesserts = [...currentMenu.desserts, ...(currentMenu.dinnerDesserts || [])];
+
+    const plat = allPlats.find((p) => p.id === ticket.selectedPlatId);
+    const entree = allEntrees.find((e) => e.id === ticket.selectedEntreeId);
+    const dessert = allDesserts.find((d) => d.id === ticket.selectedDessertId);
     return { plat, entree, dessert };
   };
 
@@ -383,9 +387,22 @@ export const StaffReservationHistory: React.FC<StaffReservationHistoryProps> = (
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
                     <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
                       {ticket.ticketCode || `#${ticket.id.slice(-6)}`}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      ticket.mealType === 'breakfast'
+                        ? 'bg-amber-100 text-amber-900'
+                        : ticket.mealType === 'dinner'
+                        ? 'bg-indigo-100 text-indigo-900'
+                        : 'bg-emerald-100 text-emerald-900'
+                    }`}>
+                      {ticket.mealType === 'breakfast'
+                        ? '🥐 Petit-déj'
+                        : ticket.mealType === 'dinner'
+                        ? '🌙 Dîner'
+                        : '🍽️ Midi'}
                     </span>
                     <span>&bull;</span>
                     <span>Créneau : {ticket.timeSlot}</span>

@@ -76,8 +76,21 @@ export interface Translations {
   formTitle: string;
   formSubtitle: string;
   stepIdentity: string;
+  stepMealType: string;
   stepMenuSelection: string;
   stepOptionsAndNotes: string;
+  mealTypeLabel: string;
+  mealBreakfast: string;
+  mealLunch: string;
+  mealDinner: string;
+  mealBreakfastDesc: string;
+  mealLunchDesc: string;
+  mealDinnerDesc: string;
+  allMealTypes: string;
+  breakfastItemsTitle: string;
+  dinnerEntreesTitle: string;
+  dinnerPlatsTitle: string;
+  dinnerDessertsTitle: string;
   fullNameOrBadgeLabel: string;
   fullNameOrBadgePlaceholder: string;
   authorizedAgentBadge: string;
@@ -340,11 +353,24 @@ export const translations: Record<Language, Translations> = {
     freshBreadOption: 'Pain individuel frais du jour',
     waterBottleOption: 'Eau minérale ou boisson au choix',
 
-    formTitle: 'Formulaire de Réservation du Déjeuner',
+    formTitle: 'Formulaire de Réservation de Repas',
     formSubtitle: 'Renseignez vos coordonnées pour valider votre repas et obtenir votre ticket avec QR code.',
     stepIdentity: '1. Identification de l’agent',
-    stepMenuSelection: '2. Choix de votre menu',
-    stepOptionsAndNotes: '3. Options et remarques',
+    stepMealType: '2. Choix du service (Type de repas)',
+    stepMenuSelection: '3. Choix de votre menu',
+    stepOptionsAndNotes: '4. Options et remarques',
+    mealTypeLabel: 'Service de restauration',
+    mealBreakfast: 'Petit-déjeuner',
+    mealLunch: 'Repas de midi (Déjeuner)',
+    mealDinner: 'Dîner (Soir)',
+    mealBreakfastDesc: 'Matin • 07h00 - 09h00',
+    mealLunchDesc: 'Midi • 11h45 - 13h45',
+    mealDinnerDesc: 'Soir • 19h00 - 21h00',
+    allMealTypes: 'Tous les services',
+    breakfastItemsTitle: 'Formules Petit-déjeuner',
+    dinnerEntreesTitle: 'Entrées & Soupes du soir',
+    dinnerPlatsTitle: 'Plats chauds du dîner',
+    dinnerDessertsTitle: 'Desserts légers du soir',
     fullNameOrBadgeLabel: 'Nom complet ou Matricule',
     fullNameOrBadgePlaceholder: 'Rechercher par nom ou matricule (ex: AGT-001)...',
     authorizedAgentBadge: 'Agent habilité reconnu',

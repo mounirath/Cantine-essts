@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Reservation, DailyMenu, AppSettings, TimeCheckResult } from '../types';
+import { Reservation, DailyMenu, AppSettings, TimeCheckResult, MealType, MEAL_TYPES_CONFIG } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Printer,
@@ -10,6 +10,9 @@ import {
   PlusCircle,
   Camera,
   Utensils,
+  Sun,
+  Moon,
+  Coffee,
 } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 import { UserCanteenScannerModal } from './UserCanteenScannerModal';
@@ -41,14 +44,21 @@ export const ReservationTicketCard: React.FC<ReservationTicketCardProps> = ({
   const [isCanteenScannerOpen, setIsCanteenScannerOpen] = useState(false);
   const [isCounterPosterOpen, setIsCounterPosterOpen] = useState(false);
 
-  const entreeItem = menu.entrees.find((e) => e.id === reservation.selectedEntreeId);
-  const platItem = menu.plats.find((p) => p.id === reservation.selectedPlatId);
-  const dessertItem = menu.desserts.find((d) => d.id === reservation.selectedDessertId);
+  // Pool complet d'items pour résoudre les plats de tous types
+  const allPlats = [...menu.plats, ...(menu.breakfastItems || []), ...(menu.dinnerPlats || [])];
+  const allEntrees = [...menu.entrees, ...(menu.dinnerEntrees || [])];
+  const allDesserts = [...menu.desserts, ...(menu.dinnerDesserts || [])];
+
+  const entreeItem = allEntrees.find((e) => e.id === reservation.selectedEntreeId);
+  const platItem = allPlats.find((p) => p.id === reservation.selectedPlatId);
+  const dessertItem = allDesserts.find((d) => d.id === reservation.selectedDessertId);
+
+  const mealType: MealType = reservation.mealType || 'lunch';
 
   const canCancel =
     reservation.status === 'confirmed' &&
     settings.allowCancellation &&
-    timeStatus.isOpen; // Cancellation also constrained to booking window for kitchen predictability
+    timeStatus.isOpen;
 
   const handleCancel = async () => {
     if (!window.confirm(t('confirmCancelPrompt'))) {
@@ -80,30 +90,48 @@ export const ReservationTicketCard: React.FC<ReservationTicketCardProps> = ({
       {/* Visual ticket presentation */}
       <div className="bg-white rounded-3xl border-2 border-emerald-500/40 shadow-2xl overflow-hidden relative print:border-none print:shadow-none">
         {/* Top ticket header */}
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-6 sm:p-7 relative">
+        <div className={`text-white p-6 sm:p-7 relative ${
+          mealType === 'breakfast'
+            ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700'
+            : mealType === 'dinner'
+            ? 'bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-800'
+            : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700'
+        }`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <AppLogo settings={settings} size="md" />
               <div>
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-bold uppercase tracking-wider mb-1">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-200" />
-                  <span>{t('officialTicketValidated')}</span>
+                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  <span>
+                    {mealType === 'breakfast'
+                      ? 'Ticket Petit-déjeuner'
+                      : mealType === 'dinner'
+                      ? 'Ticket Dîner (Soir)'
+                      : t('officialTicketValidated')}
+                  </span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight">
                   {settings.establishmentName}
                 </h2>
-                <p className="text-xs text-emerald-100 font-medium mt-0.5">
+                <p className="text-xs text-white/80 font-medium mt-0.5">
                   {t('staffCatering')} &bull; {formatDate(reservation.date)}
                 </p>
               </div>
             </div>
 
             {/* Ticket code badge */}
-            <div className="bg-white text-slate-900 rounded-2xl p-3 shadow-md text-center shrink-0 border border-emerald-200">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 block">
+            <div className="bg-white text-slate-900 rounded-2xl p-3 shadow-md text-center shrink-0 border border-slate-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block">
                 {t('pickupNumberLabel')}
               </span>
-              <span className="text-xl font-black font-mono text-slate-900 block mt-0.5">
+              <span className={`text-xl font-black font-mono block mt-0.5 ${
+                mealType === 'breakfast'
+                  ? 'text-amber-700'
+                  : mealType === 'dinner'
+                  ? 'text-indigo-700'
+                  : 'text-emerald-700'
+              }`}>
                 {reservation.ticketCode}
               </span>
             </div>
@@ -139,7 +167,13 @@ export const ReservationTicketCard: React.FC<ReservationTicketCardProps> = ({
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                 {t('timeSlotTicketLabel')}
               </span>
-              <span className="font-extrabold text-emerald-700 text-base sm:text-lg block mt-0.5 flex items-center justify-end rtl:justify-start gap-1">
+              <span className={`font-extrabold text-base sm:text-lg block mt-0.5 flex items-center justify-end rtl:justify-start gap-1 ${
+                mealType === 'breakfast'
+                  ? 'text-amber-700'
+                  : mealType === 'dinner'
+                  ? 'text-indigo-700'
+                  : 'text-emerald-700'
+              }`}>
                 <Clock className="w-4 h-4" />
                 <span>{reservation.timeSlot}</span>
               </span>
@@ -153,46 +187,102 @@ export const ReservationTicketCard: React.FC<ReservationTicketCardProps> = ({
             </div>
           </div>
 
+          {/* Service badge */}
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+              mealType === 'breakfast'
+                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                : mealType === 'dinner'
+                ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+            }`}>
+              {mealType === 'breakfast' ? (
+                <>
+                  <Sun className="w-3.5 h-3.5" />
+                  <span>Service Petit-déjeuner (07h00 - 09h00)</span>
+                </>
+              ) : mealType === 'dinner' ? (
+                <>
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>Service Dîner (19h00 - 21h00)</span>
+                </>
+              ) : (
+                <>
+                  <Utensils className="w-3.5 h-3.5" />
+                  <span>Service Repas de midi (11h45 - 13h45)</span>
+                </>
+              )}
+            </span>
+          </div>
+
           {/* Meal Details */}
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2.5">
-              {t('mealCompositionLabel')}
+              {mealType === 'breakfast' ? 'Formule du matin' : t('mealCompositionLabel')}
             </span>
-            <div className="space-y-2 bg-slate-50 rounded-2xl p-4 border border-slate-100">
-              <div className="flex items-center gap-3 text-xs sm:text-sm">
-                <span className="font-bold text-slate-500 shrink-0 w-20">{t('entreeTicket')} :</span>
-                {entreeItem?.imageUrl && (
-                  <img src={entreeItem.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs" />
-                )}
-                <span className="font-semibold text-slate-900 truncate">
-                  {entreeItem ? entreeItem.name : '-'}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-xs sm:text-sm">
-                <span className="font-bold text-emerald-600 shrink-0 w-20">{t('mainDishTicket')} :</span>
-                {platItem?.imageUrl && (
-                  <img src={platItem.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs" />
-                )}
-                <span className="font-black text-slate-900 truncate">
-                  {platItem ? platItem.name : '-'}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-xs sm:text-sm">
-                <span className="font-bold text-slate-500 shrink-0 w-20">{t('dessertTicket')} :</span>
-                {dessertItem?.imageUrl && (
-                  <img src={dessertItem.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs" />
-                )}
-                <span className="font-semibold text-slate-900 truncate">
-                  {dessertItem ? dessertItem.name : '-'}
-                </span>
-              </div>
-              {reservation.dietaryNotes && (
-                <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-start gap-2 text-xs text-amber-900 font-medium">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                  <span>{t('specialNotesTicket')} : {reservation.dietaryNotes}</span>
+
+            {mealType === 'breakfast' ? (
+              <div className="space-y-2 bg-amber-50/60 rounded-2xl p-4 border border-amber-200">
+                <div className="flex items-start gap-3">
+                  {platItem?.imageUrl && (
+                    <img src={platItem.imageUrl} alt="" className="w-12 h-12 rounded-xl object-cover border border-amber-300 shrink-0 shadow-2xs" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block">
+                      Formule choisie :
+                    </span>
+                    <strong className="text-sm sm:text-base font-black text-slate-900 block mt-0.5">
+                      {platItem ? platItem.name : 'Formule Petit-déjeuner'}
+                    </strong>
+                    {platItem?.description && (
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        {platItem.description}
+                      </p>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 mt-2 bg-white px-2 py-0.5 rounded-md border border-amber-200">
+                      <Coffee className="w-3 h-3" />
+                      <span>Boisson chaude &amp; pur jus de fruits inclus</span>
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-2 bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                <div className="flex items-center gap-3 text-xs sm:text-sm">
+                  <span className="font-bold text-slate-500 shrink-0 w-20">{t('entreeTicket')} :</span>
+                  {entreeItem?.imageUrl && (
+                    <img src={entreeItem.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs" />
+                  )}
+                  <span className="font-semibold text-slate-900 truncate">
+                    {entreeItem ? entreeItem.name : '-'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs sm:text-sm">
+                  <span className="font-bold text-emerald-600 shrink-0 w-20">{t('mainDishTicket')} :</span>
+                  {platItem?.imageUrl && (
+                    <img src={platItem.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs" />
+                  )}
+                  <span className="font-black text-slate-900 truncate">
+                    {platItem ? platItem.name : '-'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs sm:text-sm">
+                  <span className="font-bold text-slate-500 shrink-0 w-20">{t('dessertTicket')} :</span>
+                  {dessertItem?.imageUrl && (
+                    <img src={dessertItem.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs" />
+                  )}
+                  <span className="font-semibold text-slate-900 truncate">
+                    {dessertItem ? dessertItem.name : '-'}
+                  </span>
+                </div>
+                {reservation.dietaryNotes && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-start gap-2 text-xs text-amber-900 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <span>{t('specialNotesTicket')} : {reservation.dietaryNotes}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Retrait de repas : Scanner le QR Code de la cantine */}

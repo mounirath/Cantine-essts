@@ -52,6 +52,8 @@ import {
   RefreshCcw,
   Camera,
   QrCode,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { formatFrenchDate } from '../utils/timeUtils';
 import { exportReservationsToExcel } from '../utils/excelExport';
@@ -64,6 +66,8 @@ import { SevenDayAttendanceChart } from './SevenDayAttendanceChart';
 import { SupabaseSchemaModal } from './SupabaseSchemaModal';
 import { DishPhotoModal } from './DishPhotoModal';
 import { CanteenCounterPosterModal } from './CanteenCounterPosterModal';
+import { AdminNewReservationModal } from './AdminNewReservationModal';
+import { MealType } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
 interface AdminDashboardProps {
@@ -109,6 +113,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'confirmed' | 'served' | 'cancelled'>('ALL');
+  const [mealTypeFilter, setMealTypeFilter] = useState<'ALL' | MealType>('ALL');
+  const [isNewReservationModalOpen, setIsNewReservationModalOpen] = useState(false);
+  const [menuMealSection, setMenuMealSection] = useState<'lunch' | 'breakfast' | 'dinner'>('lunch');
 
   // Multi-menus state
   const [menusList, setMenusList] = useState<DailyMenu[]>([initialMenu]);
@@ -546,10 +553,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const remainingToServe = confirmedReservations.length - servedCount;
   const placesLeft = Math.max(0, appSettings.capacityPerDay - confirmedReservations.length);
 
+  // Répartition par type de repas
+  const breakfastReservations = confirmedReservations.filter((r) => r.mealType === 'breakfast');
+  const lunchReservations = confirmedReservations.filter((r) => (r.mealType || 'lunch') === 'lunch');
+  const dinnerReservations = confirmedReservations.filter((r) => r.mealType === 'dinner');
+
+  const breakfastServedCount = reservations.filter((r) => r.status === 'served' && r.mealType === 'breakfast').length;
+  const lunchServedCount = reservations.filter((r) => r.status === 'served' && (r.mealType || 'lunch') === 'lunch').length;
+  const dinnerServedCount = reservations.filter((r) => r.status === 'served' && r.mealType === 'dinner').length;
+
+  // Pool de tous les plats et formules (Midi + Petit-déj + Dîner)
+  const allDishes = React.useMemo(() => {
+    return [
+      ...menuData.plats,
+      ...(menuData.breakfastItems || []),
+      ...(menuData.dinnerPlats || []),
+    ];
+  }, [menuData]);
+
   // Kitchen dish quantities calculation
   const platCounts = React.useMemo(() => {
     const counts: Record<string, { name: string; isVeg: boolean; count: number }> = {};
-    menuData.plats.forEach((p) => {
+    allDishes.forEach((p) => {
       counts[p.id] = { name: p.name, isVeg: !!p.isVegetarian, count: 0 };
     });
 
@@ -559,13 +584,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
     });
     return Object.values(counts);
-  }, [menuData.plats, confirmedReservations]);
+  }, [allDishes, confirmedReservations]);
 
   const vegetarianCount = platCounts
     .filter((p) => p.isVeg)
     .reduce((acc, curr) => acc + curr.count, 0);
 
-  // Filtered reservations list
+  // Filtered reservations list (incluant le filtre par type de repas)
   const filteredReservations = reservations.filter((r) => {
     const matchesSearch =
       r.staffName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -574,7 +599,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const matchesDept =
       selectedDepartmentFilter === 'ALL' || r.staffDepartment === selectedDepartmentFilter;
     const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
-    return matchesSearch && matchesDept && matchesStatus;
+    const matchesMeal =
+      mealTypeFilter === 'ALL' || (r.mealType || 'lunch') === mealTypeFilter;
+    return matchesSearch && matchesDept && matchesStatus && matchesMeal;
   });
 
   const handleToggleServed = async (reservationId: string, currentStatus: string) => {
@@ -589,10 +616,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleExportCSV = () => {
     const headers = [
       'N° Retrait',
+      'Service',
       'Nom Prénom',
       'Service/Pôle',
       'Créneau horaire',
-      'Plat principal',
+      'Plat principal / Formule',
       'Entrée',
       'Dessert',
       'Remarques diététiques',
@@ -601,11 +629,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ];
 
     const rows = confirmedReservations.map((r) => {
-      const entreeName = menuData.entrees.find((e) => e.id === r.selectedEntreeId)?.name || '-';
-      const platName = menuData.plats.find((p) => p.id === r.selectedPlatId)?.name || '-';
-      const dessertName = menuData.desserts.find((d) => d.id === r.selectedDessertId)?.name || '-';
+      const allEntrees = [...menuData.entrees, ...(menuData.dinnerEntrees || [])];
+      const allDesserts = [...menuData.desserts, ...(menuData.dinnerDesserts || [])];
+      const entreeName = allEntrees.find((e) => e.id === r.selectedEntreeId)?.name || '-';
+      const platName = allDishes.find((p) => p.id === r.selectedPlatId)?.name || '-';
+      const dessertName = allDesserts.find((d) => d.id === r.selectedDessertId)?.name || '-';
+      const mealLabel = r.mealType === 'breakfast' ? 'Petit-déjeuner' : r.mealType === 'dinner' ? 'Dîner' : 'Déjeuner (Midi)';
       return [
         `"${r.ticketCode}"`,
+        `"${mealLabel}"`,
         `"${r.staffName.replace(/"/g, '""')}"`,
         `"${r.staffDepartment.replace(/"/g, '""')}"`,
         `"${r.timeSlot}"`,
@@ -1003,7 +1035,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <span className="text-xs text-slate-500 font-medium mt-1 block">
                 Service midi : {appSettings.serviceHours}
-              </span>
+          </div>
+
+          {/* Répartition par service : Petit-déjeuner, Midi, Dîner */}
+          <div className="no-print grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold">
+                  <Sun className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-amber-950 uppercase tracking-wide block">
+                    🥐 Petit-déjeuner
+                  </span>
+                  <span className="text-[11px] text-amber-800">
+                    Service 07h00 - 09h00
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black text-amber-900 font-mono">
+                  {breakfastReservations.length}
+                </span>
+                <span className="text-[11px] text-amber-700 block">
+                  {breakfastServedCount} servi{breakfastServedCount > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
+                  <Utensils className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-emerald-950 uppercase tracking-wide block">
+                    🍽️ Repas de midi
+                  </span>
+                  <span className="text-[11px] text-emerald-800">
+                    Service 11h45 - 13h45
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black text-emerald-900 font-mono">
+                  {lunchReservations.length}
+                </span>
+                <span className="text-[11px] text-emerald-700 block">
+                  {lunchServedCount} servi{lunchServedCount > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+                  <Moon className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-indigo-950 uppercase tracking-wide block">
+                    🌙 Dîner (Soir)
+                  </span>
+                  <span className="text-[11px] text-indigo-800">
+                    Service 19h00 - 21h00
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black text-indigo-900 font-mono">
+                  {dinnerReservations.length}
+                </span>
+                <span className="text-[11px] text-indigo-700 block">
+                  {dinnerServedCount} servi{dinnerServedCount > 1 ? 's' : ''}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -1138,6 +1243,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsNewReservationModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-xs"
+                title="Créer manuellement une réservation pour un agent (Petit-déjeuner, Midi ou Dîner)"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Nouvelle Réservation</span>
+              </button>
+
+              <select
+                value={mealTypeFilter}
+                onChange={(e) => setMealTypeFilter(e.target.value as any)}
+                className="px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 bg-white font-medium text-slate-700"
+              >
+                <option value="ALL">Tous les services (Tous les repas)</option>
+                <option value="breakfast">🥐 Petit-déjeuner ({breakfastReservations.length})</option>
+                <option value="lunch">🍽️ Repas de midi ({lunchReservations.length})</option>
+                <option value="dinner">🌙 Dîner ({dinnerReservations.length})</option>
+              </select>
+
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
@@ -1151,7 +1277,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <button
                 onClick={onOpenScanner}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-xs"
+                className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-xs"
                 title="Ouvrir la caméra pour scanner les QR codes de repas"
               >
                 <ScanLine className="w-4 h-4" />
@@ -1161,7 +1287,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCanteenPosterOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-xs"
+                className="px-3.5 py-2 rounded-xl bg-emerald-900 hover:bg-slate-900 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-xs"
                 title="Télécharger ou imprimer le QR Code affiché sur le comptoir de la cantine"
               >
                 <QrCode className="w-4 h-4 text-emerald-300" />
@@ -1203,9 +1329,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <tr>
                     <th className="py-3 px-4">Émarger</th>
                     <th className="py-3 px-4">N° Ticket</th>
-                    <th className="py-3 px-4">Nom de l'agent</th>
                     <th className="py-3 px-4">Service</th>
-                    <th className="py-3 px-4">Plat Choisi</th>
+                    <th className="py-3 px-4">Nom de l'agent</th>
+                    <th className="py-3 px-4">Pôle / Service</th>
+                    <th className="py-3 px-4">Plat / Formule</th>
                     <th className="py-3 px-4">Créneau</th>
                     <th className="py-3 px-4">Précisions</th>
                     <th className="py-3 px-4 text-right">Statut</th>
@@ -1214,13 +1341,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {filteredReservations.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
                         Aucune réservation trouvée correspondant aux filtres.
                       </td>
                     </tr>
                   ) : (
                     filteredReservations.map((r) => {
-                      const platItem = menuData.plats.find((p) => p.id === r.selectedPlatId);
+                      const platItem = allDishes.find((p) => p.id === r.selectedPlatId);
                       const isServed = r.status === 'served';
                       const isCancelled = r.status === 'cancelled';
 
@@ -1249,6 +1376,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
                             {r.ticketCode}
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              r.mealType === 'breakfast'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : r.mealType === 'dinner'
+                                ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                            }`}>
+                              {r.mealType === 'breakfast'
+                                ? '🥐 Petit-déj'
+                                : r.mealType === 'dinner'
+                                ? '🌙 Dîner'
+                                : '🍽️ Midi'}
+                            </span>
                           </td>
 
                           <td className="py-3.5 px-4">
@@ -2957,6 +3100,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isOpen={isCanteenPosterOpen}
         onClose={() => setIsCanteenPosterOpen(false)}
         settings={appSettings}
+      />
+
+      {/* Modal Nouvelle Réservation Manuelle (Petit-déj, Midi, Dîner) */}
+      <AdminNewReservationModal
+        isOpen={isNewReservationModalOpen}
+        onClose={() => setIsNewReservationModalOpen(false)}
+        menu={menuData}
+        todayDateStr={todayDateStr}
+        authorizedUsers={authorizedUsersList}
+        onReservationCreated={async (newRes) => {
+          setReservations((prev) => [newRes, ...prev]);
+          await onRefreshData();
+        }}
       />
     </div>
   );
