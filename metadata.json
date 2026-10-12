@@ -1,0 +1,6 @@
+{
+  "name": "MensaStaff - Réservation de Repas du Personnel",
+  "description": "Application de réservation de repas pour le personnel de l'établissement avec contrôle horaire strict (08h00 - 10h00), gestion des menus et administration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

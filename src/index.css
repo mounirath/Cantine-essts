@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+  
+  [dir="rtl"], html[lang="ar"], body[dir="rtl"], .font-arabic {
+    font-family: 'Cairo', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  }
+  
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
