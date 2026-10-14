@@ -69,6 +69,8 @@ import { CanteenCounterPosterModal } from './CanteenCounterPosterModal';
 import { AdminNewReservationModal } from './AdminNewReservationModal';
 import { MealType } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { auth, signInWithGoogle, signOutUser, subscribeToAuth } from '../services/firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 interface AdminDashboardProps {
   initialMenu: DailyMenu;
@@ -228,6 +230,86 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isSyncingToSupabase, setIsSyncingToSupabase] = useState(false);
   const [isSyncingFromSupabase, setIsSyncingFromSupabase] = useState(false);
   const [syncActionMessage, setSyncActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Firebase state & actions
+  const [firebaseUser, setFirebaseUser] = useState(auth.currentUser);
+  const [isFirebaseTesting, setIsFirebaseTesting] = useState(false);
+  const [firebaseTestMessage, setFirebaseTestMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isFirebaseSyncingTo, setIsFirebaseSyncingTo] = useState(false);
+  const [isFirebaseSyncingFrom, setIsFirebaseSyncingFrom] = useState(false);
+
+  React.useEffect(() => {
+    const unsub = subscribeToAuth((u) => setFirebaseUser(u));
+    return unsub;
+  }, []);
+
+  const handleTestFirebase = async () => {
+    setIsFirebaseTesting(true);
+    setFirebaseTestMessage(null);
+    try {
+      const ok = await dbService.testFirebaseConnection();
+      if (ok) {
+        setFirebaseTestMessage({
+          type: 'success',
+          text: `Connexion Firebase Firestore vérifiée avec succès (Projet: ${(firebaseConfig as any).projectId}) !`,
+        });
+      } else {
+        setFirebaseTestMessage({
+          type: 'error',
+          text: 'Connexion Firebase impossible ou client hors ligne.',
+        });
+      }
+    } catch (e: any) {
+      setFirebaseTestMessage({
+        type: 'error',
+        text: `Erreur Firebase : ${e.message || 'Échec'}`,
+      });
+    } finally {
+      setIsFirebaseTesting(false);
+    }
+  };
+
+  const handleSyncToFirebase = async () => {
+    setIsFirebaseSyncingTo(true);
+    setFirebaseTestMessage(null);
+    try {
+      const res = await dbService.syncAllToFirebase();
+      setFirebaseTestMessage({
+        type: res.success ? 'success' : 'error',
+        text: res.message,
+      });
+    } catch (e: any) {
+      setFirebaseTestMessage({
+        type: 'error',
+        text: `Erreur sync Firebase : ${e.message}`,
+      });
+    } finally {
+      setIsFirebaseSyncingTo(false);
+    }
+  };
+
+  const handleSyncFromFirebase = async () => {
+    setIsFirebaseSyncingFrom(true);
+    setFirebaseTestMessage(null);
+    try {
+      const res = await dbService.syncAllFromFirebase();
+      setFirebaseTestMessage({
+        type: res.success ? 'success' : 'error',
+        text: res.message,
+      });
+      if (res.success) {
+        await refreshAdminData();
+        await onRefreshData();
+      }
+    } catch (e: any) {
+      setFirebaseTestMessage({
+        type: 'error',
+        text: `Erreur récupération Firebase : ${e.message}`,
+      });
+    } finally {
+      setIsFirebaseSyncingFrom(false);
+    }
+  };
 
   const fetchSyncStatus = async () => {
     setIsLoadingSyncStatus(true);
@@ -2775,9 +2857,166 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
           )}
 
-          {/* Section: Base de données Cloud Supabase */}
+          {/* Section: Base de données Cloud Firebase & Supabase */}
           {settingsSubTab === 'database' && (
           <div className="space-y-6">
+            {/* 0. Carte dédiée Firebase Firestore & Auth */}
+            <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-white p-6 sm:p-8 rounded-3xl border border-amber-300/80 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20 shrink-0">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M4.65 18.23l2.84-15.42a.5.5 0 0 1 .92-.15l3.29 6.22-7.05 9.35zm14.7 0l-3.32-15.42a.5.5 0 0 0-.92-.15l-3.29 6.22 7.53 9.35zm-9.3 1.95L3.6 15.65l6.45 4.53zm8.9 0l-6.45-4.53 6.45 4.53z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                        Firebase Firestore &amp; Authentification Google
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase tracking-wider border border-amber-200">
+                        Provisionné &bull; Actif
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Base de données NoSQL Firestore avec règles de sécurité ABAC et connexion Google
+                    </p>
+                  </div>
+                </div>
+
+                {/* Google Auth Status / Login */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {firebaseUser ? (
+                    <div className="flex items-center gap-2.5 bg-white border border-slate-200 py-1.5 px-3 rounded-xl shadow-2xs">
+                      {firebaseUser.photoURL ? (
+                        <img
+                          src={firebaseUser.photoURL}
+                          alt="Avatar"
+                          className="w-6 h-6 rounded-full border border-slate-200"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">
+                          {firebaseUser.email?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-slate-800 block leading-tight">
+                          {firebaseUser.displayName || firebaseUser.email}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-semibold block leading-none">
+                          {firebaseUser.email === 'rita68dz@gmail.com' ? 'Super-Admin' : 'Connecté'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => signOutUser()}
+                        className="text-xs text-slate-400 hover:text-rose-600 transition ml-1"
+                        title="Se déconnecter"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => signInWithGoogle()}
+                      className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 transition shadow-xs"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                      <span>Connexion Google</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Détails de configuration Firebase */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="bg-white/80 p-3.5 rounded-xl border border-amber-200/80">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900/60 block">
+                    ID Projet Firebase
+                  </span>
+                  <code className="text-xs font-mono font-bold text-amber-950 mt-0.5 block truncate">
+                    {(firebaseConfig as any).projectId || 'maximal-weaver-l8f9p'}
+                  </code>
+                </div>
+
+                <div className="bg-white/80 p-3.5 rounded-xl border border-amber-200/80">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900/60 block">
+                    Base Firestore Database
+                  </span>
+                  <code className="text-xs font-mono font-bold text-amber-950 mt-0.5 block truncate">
+                    {(firebaseConfig as any).firestoreDatabaseId || 'default'}
+                  </code>
+                </div>
+
+                <div className="bg-white/80 p-3.5 rounded-xl border border-amber-200/80">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900/60 block">
+                    Règles de sécurité ABAC
+                  </span>
+                  <span className="text-xs font-bold text-emerald-700 mt-0.5 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Déployées &amp; Actives</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Message de test / action */}
+              {firebaseTestMessage && (
+                <div
+                  className={`p-3.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 mb-4 ${
+                    firebaseTestMessage.type === 'success'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border border-rose-200 text-rose-800'
+                  }`}
+                >
+                  {firebaseTestMessage.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{firebaseTestMessage.text}</span>
+                </div>
+              )}
+
+              {/* Actions de synchronisation Firebase */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleTestFirebase}
+                  disabled={isFirebaseTesting}
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center gap-1.5 border border-slate-200 shadow-2xs transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${isFirebaseTesting ? 'animate-spin' : ''}`} />
+                  <span>{isFirebaseTesting ? 'Test...' : 'Tester Firestore'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncToFirebase}
+                  disabled={isFirebaseSyncingTo}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition"
+                >
+                  <CloudUpload className={`w-3.5 h-3.5 ${isFirebaseSyncingTo ? 'animate-bounce' : ''}`} />
+                  <span>{isFirebaseSyncingTo ? 'Envoi...' : 'Pousser vers Firebase'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncFromFirebase}
+                  disabled={isFirebaseSyncingFrom}
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center gap-1.5 border border-slate-200 shadow-2xs transition"
+                >
+                  <CloudDownload className={`w-3.5 h-3.5 text-emerald-600 ${isFirebaseSyncingFrom ? 'animate-bounce' : ''}`} />
+                  <span>{isFirebaseSyncingFrom ? 'Récupération...' : 'Récupérer depuis Firebase'}</span>
+                </button>
+              </div>
+            </div>
+
             {/* 1. Carte de Diagnostic & État Live de Supabase */}
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">

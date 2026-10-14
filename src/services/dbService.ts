@@ -13,6 +13,21 @@ import { AppSettings, DailyMenu, Reservation, AuthorizedUser, MenuItem, Supabase
 import { getTodayDateString } from '../utils/timeUtils';
 import { isCanteenCounterCode } from '../utils/canteenQR';
 import { getSupabaseClient, SUPABASE_CONFIG } from './supabaseClient';
+import {
+  saveDailyMenuToFirestore,
+  deleteDailyMenuFromFirestore,
+  fetchAllMenusFromFirestore,
+  saveReservationToFirestore,
+  updateReservationInFirestore,
+  deleteReservationFromFirestore,
+  fetchReservationsFromFirestore,
+  saveAuthorizedUserToFirestore,
+  deleteAuthorizedUserFromFirestore,
+  fetchAuthorizedUsersFromFirestore,
+  saveSettingsToFirestore,
+  fetchSettingsFromFirestore,
+  testFirebaseConnection,
+} from './firebase';
 
 // ==========================================
 // 1. CONTRAT D'INTERFACE AGNOSTIQUE (IDataStore)
@@ -139,6 +154,27 @@ export interface IDataStore {
 
   /** Déclenche une synchronisation manuelle forcée avec la base de données */
   triggerManualSync(): Promise<void>;
+
+  /** Synchronisation complète vers Firebase Firestore */
+  syncAllToFirebase(): Promise<{
+    success: boolean;
+    menusCount: number;
+    usersCount: number;
+    reservationsCount: number;
+    message: string;
+  }>;
+
+  /** Récupération et synchronisation complète depuis Firebase Firestore */
+  syncAllFromFirebase(): Promise<{
+    success: boolean;
+    menusCount: number;
+    usersCount: number;
+    reservationsCount: number;
+    message: string;
+  }>;
+
+  /** Teste la connexion à Firebase Firestore */
+  testFirebaseConnection(): Promise<boolean>;
 
   /** Réinitialise les données vers les données de démonstration */
   resetDemoData(): Promise<void>;
@@ -1223,6 +1259,11 @@ export class HybridDataStore implements IDataStore {
       }
     }
 
+    // Sync Firebase Firestore
+    saveDailyMenuToFirestore(menu).catch((err) => {
+      console.warn('Firebase saveDailyMenu error:', err);
+    });
+
     return menu;
   }
 
@@ -1249,6 +1290,11 @@ export class HybridDataStore implements IDataStore {
         console.warn('Supabase deleteDailyMenu error:', e);
       }
     }
+
+    // Sync Firebase Firestore
+    deleteDailyMenuFromFirestore(menuId).catch((err) => {
+      console.warn('Firebase deleteDailyMenu error:', err);
+    });
 
     return true;
   }
@@ -1370,6 +1416,11 @@ export class HybridDataStore implements IDataStore {
       }
     }
 
+    // Sync Firebase Firestore
+    saveAuthorizedUserToFirestore(user).catch((err) => {
+      console.warn('Firebase saveAuthorizedUser error:', err);
+    });
+
     return user;
   }
 
@@ -1446,6 +1497,11 @@ export class HybridDataStore implements IDataStore {
         console.warn('Supabase deleteAuthorizedUser error:', e);
       }
     }
+
+    // Sync Firebase Firestore
+    deleteAuthorizedUserFromFirestore(id).catch((err) => {
+      console.warn('Firebase deleteAuthorizedUser error:', err);
+    });
 
     return true;
   }
@@ -1615,6 +1671,11 @@ export class HybridDataStore implements IDataStore {
       }
     }
 
+    // Sync Firebase Firestore
+    saveReservationToFirestore(newReservation).catch((err) => {
+      console.warn('Firebase saveReservation error:', err);
+    });
+
     return newReservation;
   }
 
@@ -1635,6 +1696,11 @@ export class HybridDataStore implements IDataStore {
         console.warn('Supabase cancelReservation error:', e);
       }
     }
+
+    // Sync Firebase Firestore
+    updateReservationInFirestore(reservationId, { status: 'cancelled' }).catch((err) => {
+      console.warn('Firebase cancelReservation error:', err);
+    });
 
     return true;
   }
@@ -1661,6 +1727,14 @@ export class HybridDataStore implements IDataStore {
         console.warn('Supabase toggleReservationServed error:', e);
       }
     }
+
+    // Sync Firebase Firestore
+    updateReservationInFirestore(reservationId, {
+      status: list[index].status,
+      servedAt: list[index].servedAt,
+    }).catch((err) => {
+      console.warn('Firebase toggleReservationServed error:', err);
+    });
 
     return true;
   }
@@ -1722,6 +1796,14 @@ export class HybridDataStore implements IDataStore {
         console.warn('Supabase confirmMealServed error:', e);
       }
     }
+
+    // Sync Firebase Firestore
+    updateReservationInFirestore(reservation.id, {
+      status: 'served',
+      servedAt: reservation.servedAt,
+    }).catch((err) => {
+      console.warn('Firebase confirmMealServed error:', err);
+    });
 
     return {
       success: true,
@@ -1837,6 +1919,11 @@ export class HybridDataStore implements IDataStore {
         console.warn('Supabase updateSettings error:', e);
       }
     }
+
+    // Sync Firebase Firestore
+    saveSettingsToFirestore(updated as any).catch((err) => {
+      console.warn('Firebase saveSettings error:', err);
+    });
 
     return updated;
   }
@@ -2165,6 +2252,99 @@ export class HybridDataStore implements IDataStore {
     } catch (e) {
       console.warn('Realtime subscription error:', e);
       return null;
+    }
+  }
+
+  async testFirebaseConnection(): Promise<boolean> {
+    return await testFirebaseConnection();
+  }
+
+  async syncAllToFirebase(): Promise<{
+    success: boolean;
+    menusCount: number;
+    usersCount: number;
+    reservationsCount: number;
+    message: string;
+  }> {
+    try {
+      const menus = await this.getAllMenus();
+      const users = await this.getAuthorizedUsers();
+      const today = getTodayDateString();
+      const reservations = await this.getReservations(today);
+      const settings = await this.getSettings();
+
+      for (const m of menus) {
+        await saveDailyMenuToFirestore(m);
+      }
+      for (const u of users) {
+        await saveAuthorizedUserToFirestore(u);
+      }
+      for (const r of reservations) {
+        await saveReservationToFirestore(r);
+      }
+      await saveSettingsToFirestore(settings as any);
+
+      return {
+        success: true,
+        menusCount: menus.length,
+        usersCount: users.length,
+        reservationsCount: reservations.length,
+        message: 'Toutes les données ont été synchronisées avec succès vers Firebase Firestore !',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        menusCount: 0,
+        usersCount: 0,
+        reservationsCount: 0,
+        message: `Erreur lors de la synchronisation Firebase : ${err.message || 'Erreur réseau'}`,
+      };
+    }
+  }
+
+  async syncAllFromFirebase(): Promise<{
+    success: boolean;
+    menusCount: number;
+    usersCount: number;
+    reservationsCount: number;
+    message: string;
+  }> {
+    try {
+      const [remoteMenus, remoteUsers, todayRes, remoteSettings] = await Promise.all([
+        fetchAllMenusFromFirestore(),
+        fetchAuthorizedUsersFromFirestore(),
+        fetchReservationsFromFirestore(getTodayDateString()),
+        fetchSettingsFromFirestore(),
+      ]);
+
+      if (remoteMenus && remoteMenus.length > 0) {
+        localStorage.setItem(`${this.STORAGE_KEY_PREFIX}all_menus`, JSON.stringify(remoteMenus));
+      }
+      if (remoteUsers && remoteUsers.length > 0) {
+        localStorage.setItem(`${this.STORAGE_KEY_PREFIX}authorized_users`, JSON.stringify(remoteUsers));
+      }
+      if (todayRes && todayRes.length > 0) {
+        localStorage.setItem(`${this.STORAGE_KEY_PREFIX}reservations_${getTodayDateString()}`, JSON.stringify(todayRes));
+      }
+      if (remoteSettings) {
+        localStorage.setItem(`${this.STORAGE_KEY_PREFIX}settings`, JSON.stringify(remoteSettings));
+      }
+
+      return {
+        success: true,
+        menusCount: remoteMenus?.length || 0,
+        usersCount: remoteUsers?.length || 0,
+        reservationsCount: todayRes?.length || 0,
+        message: 'Données récupérées avec succès depuis Firebase Firestore !',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        menusCount: 0,
+        usersCount: 0,
+        reservationsCount: 0,
+        message: `Erreur lors de la récupération depuis Firebase : ${err.message || 'Erreur réseau'}`,
+      };
     }
   }
 

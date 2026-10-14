@@ -1,0 +1,139 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'rita68dz@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation helpers
+    function isValidMenu(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+             data.title is string && data.title.size() <= 150 &&
+             (!('chefNote' in data) || (data.chefNote is string && data.chefNote.size() <= 500)) &&
+             (!('coverImageUrl' in data) || (data.coverImageUrl is string && data.coverImageUrl.size() <= 500));
+    }
+
+    function isValidReservation(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+             data.staffName is string && data.staffName.size() > 0 && data.staffName.size() <= 100 &&
+             data.staffDepartment is string && data.staffDepartment.size() > 0 && data.staffDepartment.size() <= 100 &&
+             data.selectedPlatId is string && data.selectedPlatId.size() <= 128 &&
+             data.timeSlot is string && data.timeSlot.size() <= 50 &&
+             data.status in ['confirmed', 'cancelled', 'served'] &&
+             data.ticketCode is string && data.ticketCode.size() <= 30 &&
+             (!('dietaryNotes' in data) || (data.dietaryNotes is string && data.dietaryNotes.size() <= 300)) &&
+             (!('staffEmail' in data) || (data.staffEmail is string && data.staffEmail.size() <= 150)) &&
+             (!('mealType' in data) || (data.mealType in ['breakfast', 'lunch', 'dinner']));
+    }
+
+    function isValidAuthorizedUser(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.badgeNumber is string && data.badgeNumber.size() > 0 && data.badgeNumber.size() <= 50 &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 120 &&
+             data.department is string && data.department.size() > 0 && data.department.size() <= 100 &&
+             data.active is bool &&
+             (!('dietaryNotes' in data) || (data.dietaryNotes is string && data.dietaryNotes.size() <= 300));
+    }
+
+    function isValidSettings(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.canteenName is string && data.canteenName.size() <= 100 &&
+             (!('serviceHours' in data) || (data.serviceHours is string && data.serviceHours.size() <= 100));
+    }
+
+    // Rules for Menus collection
+    match /menus/{menuId} {
+      allow get, list: if true; // Publicly visible daily menu for cafeteria staff & students
+      allow create: if isAdmin() && isValidId(menuId) && isValidMenu(incoming());
+      allow update: if isAdmin() && isValidId(menuId) && isValidMenu(incoming());
+      allow delete: if isAdmin() && isValidId(menuId);
+    }
+
+    // Rules for Reservations collection
+    match /reservations/{reservationId} {
+      allow get: if isSignedIn() || isAdmin();
+      allow list: if isSignedIn() || isAdmin();
+
+      allow create: if isValidId(reservationId) &&
+                       isValidReservation(incoming()) &&
+                       (
+                         isAdmin() ||
+                         (isSignedIn() && incoming().userId == request.auth.uid) ||
+                         // Allow reservation when unauthenticated if configured or badge scanned
+                         incoming().userId is string
+                       );
+
+      allow update: if isValidId(reservationId) && isValidReservation(incoming()) && (
+        isAdmin() ||
+        (
+          // Non-admin can only update their own reservation if not already served
+          isSignedIn() &&
+          existing().userId == request.auth.uid &&
+          existing().status != 'served' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'dietaryNotes', 'timeSlot', 'selectedPlatId', 'selectedEntreeId', 'selectedDessertId'])
+        ) ||
+        (
+          // Staff cashier / barcode scanner checking in a reservation
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'servedAt']) &&
+          incoming().status == 'served'
+        )
+      );
+
+      allow delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid && existing().status != 'served');
+    }
+
+    // Rules for Authorized Users collection
+    match /authorizedUsers/{userId} {
+      allow get, list: if isSignedIn() || isAdmin();
+      allow create: if isValidId(userId) && isValidAuthorizedUser(incoming());
+      allow update: if isAdmin() && isValidId(userId) && isValidAuthorizedUser(incoming());
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Rules for Settings
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow write: if isAdmin() && isValidId(settingId) && isValidSettings(incoming());
+    }
+
+    // Rules for Admins
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

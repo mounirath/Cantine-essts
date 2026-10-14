@@ -1,0 +1,296 @@
+{
+  "entities": {
+    "DailyMenu": {
+      "title": "DailyMenu",
+      "description": "Menu du jour avec entrées, plats, desserts pour le petit-déjeuner, déjeuner et dîner",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "entrees": {
+          "type": "array"
+        },
+        "plats": {
+          "type": "array"
+        },
+        "desserts": {
+          "type": "array"
+        },
+        "breakfastItems": {
+          "type": "array"
+        },
+        "dinnerEntrees": {
+          "type": "array"
+        },
+        "dinnerPlats": {
+          "type": "array"
+        },
+        "dinnerDesserts": {
+          "type": "array"
+        },
+        "breadBeverageIncluded": {
+          "type": "boolean"
+        },
+        "chefNote": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "featuredPlatId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "coverImageUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "required": ["id", "date", "title"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Réservation individuelle de repas pour un agent avec QR ticket",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "staffName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "staffDepartment": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "staffEmail": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "mealType": {
+          "type": "string",
+          "enum": ["breakfast", "lunch", "dinner"]
+        },
+        "selectedEntreeId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "selectedPlatId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "selectedDessertId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "dietaryNotes": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "timeSlot": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "status": {
+          "type": "string",
+          "enum": ["confirmed", "cancelled", "served"]
+        },
+        "ticketCode": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "servedAt": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "required": ["id", "date", "staffName", "staffDepartment", "selectedPlatId", "timeSlot", "status", "ticketCode"]
+    },
+    "AuthorizedUser": {
+      "title": "AuthorizedUser",
+      "description": "Utilisateur autorisé (matricule, nom, service, validation)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "badgeNumber": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "lastName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "firstName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "fullName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "department": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "dietaryNotes": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "approvalStatus": {
+          "type": "string",
+          "enum": ["approved", "pending", "rejected"]
+        },
+        "registeredAt": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "approvedAt": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "required": ["id", "badgeNumber", "fullName", "department", "active"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Paramètres globaux de fonctionnement de la cantine",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "canteenName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "serviceHours": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "maxDailyCapacity": {
+          "type": "number"
+        },
+        "enableAutomaticCutoff": {
+          "type": "boolean"
+        },
+        "cutoffHour": {
+          "type": "number"
+        },
+        "cutoffMinute": {
+          "type": "number"
+        },
+        "allowBadgeScanning": {
+          "type": "boolean"
+        },
+        "allowDietaryNotes": {
+          "type": "boolean"
+        },
+        "allowGuestReservations": {
+          "type": "boolean"
+        },
+        "requireApprovalForNewUsers": {
+          "type": "boolean"
+        },
+        "primaryColor": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "required": ["id", "canteenName"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Compte gestionnaire ou administrateur cantine",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "superadmin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/menus/{menuId}": {
+      "schema": "DailyMenu",
+      "description": "Menus quotidiens et formules de repas"
+    },
+    "/reservations/{reservationId}": {
+      "schema": "Reservation",
+      "description": "Réservations de repas et tickets de retrait"
+    },
+    "/authorizedUsers/{userId}": {
+      "schema": "AuthorizedUser",
+      "description": "Registre des agents et usagers autorisés"
+    },
+    "/settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "Paramètres généraux de la cantine"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminUser",
+      "description": "Comptes autorisés à administrer la cantine"
+    }
+  }
+}
