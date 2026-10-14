@@ -368,7 +368,7 @@ export const AttendanceStats: React.FC<AttendanceStatsProps> = ({
                   </span>
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                  Analyse détaillée des réservations de repas, taux d'affluence et pointages du personnel
+                  Analyse détaillée des réservations de repas, taux d'affluence et pointages des étudiants
                 </p>
               </div>
             </div>

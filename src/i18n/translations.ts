@@ -291,7 +291,7 @@ export const translations: Record<Language, Translations> = {
     appName: 'ESSTS Cantine',
     appSubname: 'MensaStaff',
     establishmentRole: 'École Supérieure des Sciences et Technologies du Sport',
-    staffCatering: 'Restauration du personnel',
+    staffCatering: 'Restauration des étudiants',
     loading: 'Chargement du service de restauration...',
     connectingDb: 'Connexion à la base de données',
 
@@ -565,7 +565,7 @@ export const translations: Record<Language, Translations> = {
     appName: 'مطعم ESSTS',
     appSubname: 'خدمة إطعام الموظفين',
     establishmentRole: 'المدرسة العليا لعلوم الرياضة وتكنولوجياتها',
-    staffCatering: 'إطعام موظفي المؤسسة',
+    staffCatering: 'إطعام الطلبة',
     loading: 'جاري تحميل خدمة الإطعام...',
     connectingDb: 'الاتصال بقاعدة البيانات',
 

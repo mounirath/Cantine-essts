@@ -146,10 +146,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCsvExportNotice(
         `Fichier CSV téléchargé avec succès : ${res.totalRows} réservations de la semaine (${res.filename})`
       );
-      setTimeout(() => setCsvExportNotice(null), 6000);
     } catch (err) {
       console.error('Erreur export CSV:', err);
-      alert("Une erreur est survenue lors de l'exportation CSV.");
+      setCsvExportNotice("Une erreur est survenue lors de l'exportation CSV.");
+      setTimeout(() => setCsvExportNotice(null), 6000);
     } finally {
       setIsExportingCSV(false);
     }
@@ -920,7 +920,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Printable Sheet Header (VISIBLE ONLY ON PRINT) */}
       <div className="print-only mb-6 border-b-2 border-black pb-4">
         <h1 className="text-2xl font-black uppercase tracking-tight">
-          Feuille d'émargement &bull; Restauration du personnel
+          Feuille d'émargement &bull; Restauration des étudiants
         </h1>
         <p className="text-sm font-semibold mt-1">
           {appSettings.establishmentName} &bull; Date : {formatFrenchDate(todayDateStr)}

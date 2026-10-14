@@ -64,7 +64,7 @@ export async function downloadCanteenPosterPdf(options: PosterOptions, filename 
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('RESTAURATION DU PERSONNEL & SERVICES', pageWidth / 2, 21, { align: 'center' });
+  doc.text('RESTAURATION DES ÉTUDIANTS & SERVICES', pageWidth / 2, 21, { align: 'center' });
 
   // Border frame
   doc.setDrawColor(203, 213, 225); // slate-300
@@ -211,7 +211,7 @@ export async function downloadCanteenPosterImage(options: PosterOptions, filenam
   ctx.font = 'bold 44px sans-serif';
   ctx.fillText(options.establishmentName.toUpperCase(), width / 2, 95);
   ctx.font = '24px sans-serif';
-  ctx.fillText('RESTAURATION DU PERSONNEL & SERVICES', width / 2, 135);
+  ctx.fillText('RESTAURATION DES ÉTUDIANTS & SERVICES', width / 2, 135);
 
   const isPickup = options.type === 'pickup';
 

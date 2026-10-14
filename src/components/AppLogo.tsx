@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { EsstsLogo } from './EsstsLogo';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface AppLogoProps {
   settings?: AppSettings;
@@ -23,6 +24,7 @@ export const AppLogo: React.FC<AppLogoProps> = ({
   className = '',
   showText = false,
 }) => {
+  const { t } = useLanguage();
   const sizeClasses = {
     sm: 'w-8 h-8 rounded-lg text-sm',
     md: 'w-10 h-10 sm:w-12 sm:h-12 rounded-xl text-base',
@@ -96,7 +98,7 @@ export const AppLogo: React.FC<AppLogoProps> = ({
               {settings.establishmentName}
             </span>
             <span className="text-xs text-slate-500 font-medium block">
-              Restauration du personnel
+              {t('staffCatering')}
             </span>
           </div>
         )}
@@ -137,7 +139,7 @@ export const AppLogo: React.FC<AppLogoProps> = ({
             {settings?.establishmentName || 'ESSTS'}
           </span>
           <span className="text-xs text-slate-500 font-medium block">
-            Restauration du personnel
+            {t('staffCatering')}
           </span>
         </div>
       )}

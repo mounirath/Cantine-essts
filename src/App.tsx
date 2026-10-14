@@ -193,6 +193,14 @@ export default function App() {
     }
   };
 
+  const handleExportWeeklyCSV = useCallback(async () => {
+    try {
+      await exportWeeklyReservationsCSV(todayDateStr, reservations);
+    } catch (err) {
+      console.error('Error exporting weekly CSV:', err);
+    }
+  }, [todayDateStr, reservations]);
+
   if (isLoading || !settings || !menu) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -208,15 +216,6 @@ export default function App() {
   }
 
   const confirmedCount = reservations.filter((r) => r.status !== 'cancelled').length;
-
-  const handleExportWeeklyCSV = useCallback(async () => {
-    try {
-      await exportWeeklyReservationsCSV(todayDateStr, reservations);
-    } catch (err) {
-      console.error('Error exporting weekly CSV:', err);
-      alert("Une erreur est survenue lors de l'exportation CSV.");
-    }
-  }, [todayDateStr, reservations]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans w-full max-w-full overflow-x-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
