@@ -21,6 +21,7 @@ import {
   CheckCheck,
   Layers,
   ChevronRight,
+  Lock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -37,7 +38,9 @@ interface ReservationFormProps {
   selectedMealTypeProp?: MealType;
   initialBadgeProp?: string;
   restrictToAuthorizedUsers?: boolean;
+  enableQrExpressBooking?: boolean;
   onOpenRegistration?: () => void;
+  onSetSimulation?: (time: Date | null) => void;
 }
 
 const DEPARTMENTS = [
@@ -83,7 +86,9 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
   selectedMealTypeProp = 'lunch',
   initialBadgeProp,
   restrictToAuthorizedUsers = true,
+  enableQrExpressBooking = true,
   onOpenRegistration,
+  onSetSimulation,
 }) => {
   const { t } = useLanguage();
 
@@ -623,37 +628,116 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
               Changer d'agent
             </button>
           </div>
-        ) : (
-          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
-                    Identification Express par Badge
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
-                    Sans Saisie
-                  </span>
+        ) : enableQrExpressBooking ? (
+          <div
+            className={`mb-5 p-4 rounded-2xl border transition-all ${
+              !timeStatus.isOpen
+                ? 'bg-slate-900 border-slate-800 text-slate-300 shadow-xs'
+                : isFull
+                ? 'bg-slate-900 border-slate-800 text-slate-300 shadow-xs'
+                : 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-slate-800 shadow-sm'
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                    !timeStatus.isOpen || isFull
+                      ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                      : 'bg-emerald-500 text-slate-950'
+                  }`}
+                >
+                  <QrCode className="w-5 h-5" />
                 </div>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Scannez votre badge ou QR code pour remplir vos coordonnées instantanément.
-                </p>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className={`text-xs font-black uppercase tracking-wider ${
+                        !timeStatus.isOpen || isFull ? 'text-slate-400' : 'text-emerald-400'
+                      }`}
+                    >
+                      {t('scanBadgeToBook')}
+                    </span>
+                    {!timeStatus.isOpen ? (
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/40 flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" />
+                        <span>Réservations Closes</span>
+                      </span>
+                    ) : isFull ? (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
+                        Capacité Atteinte
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
+                        Sans Saisie
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {!timeStatus.isOpen
+                      ? `Les réservations sont closes pour aujourd'hui (${timeStatus.startTime} - ${timeStatus.endTime}). Le scanner de réservation express par badge QR est désactivé.`
+                      : isFull
+                      ? "La capacité maximale de repas pour aujourd'hui est atteinte."
+                      : t('scanBadgeSubtitle')}
+                  </p>
+                  {!timeStatus.isOpen && onSetSimulation && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setHours(8, 45, 0, 0);
+                        onSetSimulation(d);
+                      }}
+                      className="mt-2 text-xs font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Simuler 08h45 (Ouvrir les réservations pour tester)</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setIsBadgeScannerOpen(true)}
-              className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm shrink-0"
-            >
-              <Camera className="w-4 h-4" />
-              <span>Scanner mon Badge</span>
-            </button>
+              <button
+                type="button"
+                disabled={!timeStatus.isOpen || isFull}
+                onClick={() => {
+                  if (timeStatus.isOpen && !isFull) {
+                    setIsBadgeScannerOpen(true);
+                  }
+                }}
+                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shrink-0 ${
+                  !timeStatus.isOpen || isFull
+                    ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed opacity-80 shadow-none'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm cursor-pointer'
+                }`}
+                title={
+                  !timeStatus.isOpen
+                    ? `Réservations closes pour aujourd'hui (${timeStatus.startTime} - ${timeStatus.endTime})`
+                    : isFull
+                    ? 'Capacité maximale atteinte'
+                    : 'Scanner votre badge QR'
+                }
+              >
+                {!timeStatus.isOpen ? (
+                  <>
+                    <Lock className="w-4 h-4 text-rose-400" />
+                    <span>Désactivé (Réservations Closes)</span>
+                  </>
+                ) : isFull ? (
+                  <>
+                    <Lock className="w-4 h-4 text-amber-400" />
+                    <span>Désactivé (Complet)</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-4 h-4" />
+                    <span>Scanner mon Badge</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        )}
+        ) : null}
 
         {/* RÉSERVATIONS DÉJÀ EFFECTUÉES PAR CET AGENT AUJOURD'HUI */}
         {existingUserBookings.length > 0 && (
@@ -1508,6 +1592,7 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
             setIsBadgeScannerOpen(false);
           }}
           authorizedUsers={authorizedUsersList}
+          timeStatus={timeStatus}
         />
       )}
     </form>

@@ -2636,6 +2636,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </label>
               </div>
 
+              {/* Réservation express par Badge QR */}
+              <div className="pt-2">
+                <label className="flex items-start gap-2.5 cursor-pointer p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={appSettings.enableQrExpressBooking !== false}
+                    onChange={(e) =>
+                      setAppSettings({
+                        ...appSettings,
+                        enableQrExpressBooking: e.target.checked,
+                      })
+                    }
+                    className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 mt-0.5"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-900 block">
+                      Réservation express par Badge QR : Proposer le bouton « Scanner mon Badge QR »
+                    </span>
+                    <span className="text-slate-500 text-[11px] block mt-0.5">
+                      Permet aux agents et étudiants de scanner leur badge ou QR code pour remplir automatiquement leur réservation.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div className="pt-4 flex justify-end">
                 <button
                   type="submit"

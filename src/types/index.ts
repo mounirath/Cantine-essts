@@ -134,6 +134,7 @@ export interface AppSettings {
   logoUrl?: string; // Custom uploaded image (Data URL) or web URL
   logoIcon?: string; // Icon preset identifier (e.g., 'utensils', 'hospital', 'school', 'chef', 'building')
   restrictToAuthorizedUsers: boolean; // Vérifie que l'agent est dans la liste autorisée
+  enableQrExpressBooking?: boolean; // Activer ou désactiver le bouton réservation express par Badge QR
   activeMenuId?: string; // ID du menu sélectionné par l'admin pour affichage
   supabaseUrl?: string; // Configuration Supabase URL
   supabaseAnonKey?: string; // Configuration Supabase Anon Key

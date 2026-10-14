@@ -211,6 +211,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   allowCancellation: true,
   kitchenContactEmail: 'restauration@essts.dz',
   restrictToAuthorizedUsers: true,
+  enableQrExpressBooking: true,
   supabaseUrl: 'https://vebfzgiblpnocusdlozu.supabase.co',
   supabaseAnonKey: 'sb_publishable_GU2cGO16rGYG80K7ne9sSQ_JuVuX9r_',
   useSupabaseBackend: true,

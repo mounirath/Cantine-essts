@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { AuthorizedUser } from '../types';
+import { AuthorizedUser, TimeCheckResult } from '../types';
 import { dbService } from '../services/dbService';
 import {
   X,
@@ -12,6 +12,7 @@ import {
   Sparkles,
   ShieldCheck,
   RefreshCw,
+  Lock,
 } from 'lucide-react';
 
 interface UserBadgeScannerModalProps {
@@ -19,6 +20,7 @@ interface UserBadgeScannerModalProps {
   onClose: () => void;
   onUserIdentified: (user: AuthorizedUser) => void;
   authorizedUsers?: AuthorizedUser[];
+  timeStatus?: TimeCheckResult;
 }
 
 export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
@@ -26,6 +28,7 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
   onClose,
   onUserIdentified,
   authorizedUsers = [],
+  timeStatus,
 }) => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -258,6 +261,19 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Notice si réservations closes */}
+        {timeStatus && !timeStatus.isOpen && (
+          <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl text-xs flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-rose-950">Réservations closes pour aujourd'hui</p>
+              <p className="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
+                Le créneau horaire ({timeStatus.startTime} - {timeStatus.endTime}) est clôturé. Le scan permet de vous identifier et de consulter vos réservations du jour, mais la validation d'un nouveau repas reste bloquée.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Success feedback */}
         {identifiedUser ? (

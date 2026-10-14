@@ -398,7 +398,9 @@ export default function App() {
                   selectedMealTypeProp={selectedMealTypeForForm}
                   initialBadgeProp={urlBadgeParam || undefined}
                   restrictToAuthorizedUsers={settings.restrictToAuthorizedUsers}
+                  enableQrExpressBooking={settings.enableQrExpressBooking}
                   onOpenRegistration={() => setIsRegistrationModalOpen(true)}
+                  onSetSimulation={setSimulatedTime}
                 />
               </div>
             </motion.div>
