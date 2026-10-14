@@ -54,15 +54,18 @@ import {
   QrCode,
   Sun,
   Moon,
+  BarChart3,
 } from 'lucide-react';
 import { formatFrenchDate } from '../utils/timeUtils';
 import { exportReservationsToExcel } from '../utils/excelExport';
+import { exportWeeklyReservationsCSV } from '../utils/csvExport';
 import { compressImageFile } from '../utils/dishImageUtils';
 import { AppLogo } from './AppLogo';
 import { EsstsLogo } from './EsstsLogo';
 import { AuthorizedUsersManager } from './AuthorizedUsersManager';
 import { WeeklyReservationTrends } from './WeeklyReservationTrends';
 import { SevenDayAttendanceChart } from './SevenDayAttendanceChart';
+import { AttendanceStats } from './AttendanceStats';
 import { SupabaseSchemaModal } from './SupabaseSchemaModal';
 import { DishPhotoModal } from './DishPhotoModal';
 import { CanteenCounterPosterModal } from './CanteenCounterPosterModal';
@@ -107,7 +110,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   todayDateStr,
 }) => {
   const { t, formatDate } = useLanguage();
-  const [activeAdminTab, setActiveAdminTab] = useState<'inscrits' | 'menu' | 'users' | 'trends' | 'settings'>('inscrits');
+  const [activeAdminTab, setActiveAdminTab] = useState<'inscrits' | 'menu' | 'users' | 'trends' | 'stats' | 'settings'>('inscrits');
   const [settingsSubTab, setSettingsSubTab] = useState<'general' | 'logo' | 'database' | 'security'>('general');
 
   // Reservations state
@@ -131,6 +134,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isMenuCoverModalOpen, setIsMenuCoverModalOpen] = useState(false);
   const [isCanteenPosterOpen, setIsCanteenPosterOpen] = useState(false);
+
+  // Weekly CSV Export State
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [csvExportNotice, setCsvExportNotice] = useState<string | null>(null);
+
+  const handleExportWeeklyCSV = async () => {
+    try {
+      setIsExportingCSV(true);
+      const res = await exportWeeklyReservationsCSV(todayDateStr, reservations);
+      setCsvExportNotice(
+        `Fichier CSV téléchargé avec succès : ${res.totalRows} réservations de la semaine (${res.filename})`
+      );
+      setTimeout(() => setCsvExportNotice(null), 6000);
+    } catch (err) {
+      console.error('Erreur export CSV:', err);
+      alert("Une erreur est survenue lors de l'exportation CSV.");
+    } finally {
+      setIsExportingCSV(false);
+    }
+  };
 
   const handleOpenPhotoModal = (dish: MenuItem) => {
     setPhotoModalDish(dish);
@@ -910,18 +933,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* Admin Top Banner */}
-      <div className="no-print bg-slate-900 text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2 border border-emerald-500/30">
-            <Key className="w-3.5 h-3.5" />
-            <span>Espace Gestionnaire &amp; Cuisine</span>
+      <div className="no-print bg-slate-900 text-white rounded-3xl p-6 sm:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3.5">
+            {/* Logo Cantine Étudiant & Personnel */}
+            <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shrink-0 shadow-inner flex items-center justify-center">
+              <AppLogo settings={settings} size="md" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1.5 border border-emerald-500/30">
+                <Key className="w-3.5 h-3.5" />
+                <span>Espace Gestionnaire &bull; Cantine Étudiant</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                {t('adminDashboardTitle')}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                {settings.establishmentName} &bull; {formatDate(todayDateStr)}
+              </p>
+            </div>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-            {t('adminDashboardTitle')}
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            {settings.establishmentName} &bull; {formatDate(todayDateStr)}
-          </p>
+
+          {/* Bouton Exportation CSV Semaine à côté du logo cantine étudiant */}
+          <div className="sm:ml-2">
+            <button
+              type="button"
+              onClick={handleExportWeeklyCSV}
+              disabled={isExportingCSV}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-950/40 border border-emerald-400/40 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-60 shrink-0"
+              title="Exporter les données de réservation de la semaine en format CSV (compatible Excel & LibreOffice)"
+            >
+              {isExportingCSV ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              )}
+              <span>{isExportingCSV ? 'Export en cours...' : 'Exporter CSV Semaine'}</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -972,7 +1021,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             title="Affiche et QR Code à imprimer ou télécharger pour le comptoir de la cantine"
           >
             <QrCode className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">Affiche Comptoir (QR Code)</span>
+            <span className="hidden sm:inline">Affiche Comptoir</span>
           </button>
 
           <button
@@ -984,6 +1033,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Message de notification d'exportation CSV */}
+      {csvExportNotice && (
+        <div className="no-print bg-emerald-500/20 border border-emerald-500/50 text-emerald-900 dark:text-emerald-200 px-4 py-3 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-medium shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{csvExportNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCsvExportNotice(null)}
+            className="text-emerald-700 dark:text-emerald-300 hover:underline font-bold text-xs"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
 
       {/* Admin Tabs */}
       <div className="no-print flex items-center border-b border-slate-200 gap-2 sm:gap-4 overflow-x-auto pb-1">
@@ -1038,6 +1104,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         >
           <TrendingUp className="w-4 h-4 text-emerald-600" />
           <span>{t('tabTrendsAndPredictions') || 'Tendance & Ingrédients'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('stats')}
+          className={`py-3 px-4 font-bold text-xs sm:text-sm rounded-t-xl transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
+            activeAdminTab === 'stats'
+              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 text-emerald-600" />
+          <span>{t('tabAttendanceStats') || 'Statistiques de fréquentation'}</span>
         </button>
 
         <button
@@ -1258,14 +1336,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveAdminTab('trends')}
-              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition shrink-0 shadow-xs"
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>Consulter les Prévisions Ingrédients</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('stats')}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition shrink-0 shadow-xs"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Statistiques de Fréquentation</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAdminTab('trends')}
+                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition shrink-0"
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>Prévisions Ingrédients</span>
+              </button>
+            </div>
           </div>
 
           {/* Kitchen dish prep synthesis */}
@@ -2337,6 +2425,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             todayDateStr={todayDateStr}
           />
         </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB: STATISTIQUES DE FRÉQUENTATION (RECHARTS)        */}
+      {/* ==================================================== */}
+      {activeAdminTab === 'stats' && (
+        <AttendanceStats
+          todayReservations={reservations}
+          canteenCapacity={appSettings.capacityPerDay}
+        />
       )}
 
       {/* ==================================================== */}

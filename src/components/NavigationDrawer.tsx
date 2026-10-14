@@ -16,6 +16,7 @@ import {
   UserPlus,
   Camera,
   History,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { AppSettings, TimeCheckResult } from '../types';
 import { AppLogo } from './AppLogo';
@@ -39,6 +40,7 @@ interface NavigationDrawerProps {
   onOpenRegistration?: () => void;
   onOpenUserCanteenScanner?: () => void;
   onOpenCanteenPoster?: () => void;
+  onExportWeeklyCSV?: () => void;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -58,6 +60,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   onOpenRegistration,
   onOpenUserCanteenScanner,
   onOpenCanteenPoster,
+  onExportWeeklyCSV,
 }) => {
   const { t, formatDate, isRTL, language } = useLanguage();
   const drawerRef = useRef<HTMLElement>(null);
@@ -404,6 +407,32 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               </div>
               <ChevronRight className="w-4 h-4 rtl:rotate-180 text-slate-400" />
             </button>
+
+            {onExportWeeklyCSV && (
+              <button
+                type="button"
+                onClick={() => handleActionClick(onExportWeeklyCSV)}
+                className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold text-emerald-950 bg-gradient-to-r from-emerald-50 to-teal-50 hover:bg-emerald-100 border border-emerald-300 transition text-left rtl:text-right shadow-2xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="block font-black">Exporter CSV Semaine</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-700 text-white px-1.5 py-0.2 rounded-full">
+                        Excel
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-800 font-medium">
+                      Réservations de la semaine écoulée
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 rtl:rotate-180 text-emerald-700" />
+              </button>
+            )}
           </div>
 
           {/* Preferences Section: Language & Testing */}

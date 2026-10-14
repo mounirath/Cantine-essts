@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Utensils, QrCode, ShieldCheck, Ticket, Calendar, Clock, ScanLine, UserPlus, Camera, History } from 'lucide-react';
+import { Utensils, QrCode, ShieldCheck, Ticket, Calendar, Clock, ScanLine, UserPlus, Camera, History, FileSpreadsheet } from 'lucide-react';
 import { AppSettings, TimeCheckResult } from '../types';
 import { AppLogo } from './AppLogo';
 import { LanguageSelector } from './LanguageSelector';
 import { NavigationDrawer } from './NavigationDrawer';
 import { useLanguage } from '../i18n/LanguageContext';
+import { motion } from 'framer-motion';
 
 interface NavbarProps {
   settings: AppSettings;
@@ -19,6 +20,7 @@ interface NavbarProps {
   onOpenRegistration?: () => void;
   onOpenUserCanteenScanner?: () => void;
   onOpenCanteenPoster?: () => void;
+  onExportWeeklyCSV?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenRegistration,
   onOpenUserCanteenScanner,
   onOpenCanteenPoster,
+  onExportWeeklyCSV,
 }) => {
   const { t, formatDate, isRTL, language } = useLanguage();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -109,6 +112,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : settings.establishmentName}
                 </p>
               </div>
+
+              {/* Bouton Exporter CSV Semaine à côté du logo cantine étudiant */}
+              {onExportWeeklyCSV && (
+                <button
+                  type="button"
+                  onClick={onExportWeeklyCSV}
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-xs transition shrink-0 border border-emerald-500/30 cursor-pointer"
+                  title="Exporter les données de réservation de la semaine au format CSV (compatible Excel)"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Exporter CSV Semaine</span>
+                </button>
+              )}
             </div>
 
             {/* Center Date & Status Pill (Desktop only) */}
@@ -142,9 +158,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Quick Ticket Pill (if user has active ticket) */}
               {hasActiveTicket && (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => setActiveTab('ticket')}
-                  className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                     activeTab === 'ticket'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs'
@@ -153,14 +170,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Ticket className="w-4 h-4 text-amber-600 shrink-0" />
                   <span className="hidden xs:inline">{t('myTicket')}</span>
-                </button>
+                </motion.button>
               )}
 
               {/* Desktop Only: Registration trigger */}
               {onOpenRegistration && (
                 <button
                   onClick={onOpenRegistration}
-                  className="hidden sm:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
+                  className="hidden sm:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer"
                   title={t('registrationModalTitle')}
                 >
                   <UserPlus className="w-4 h-4 text-emerald-600" />
@@ -169,9 +186,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
 
               {/* Desktop Only: Menu & Booking button (mobile uses hamburger drawer) */}
-              <button
+              <motion.button
+                whileTap={{ scale: 0.94 }}
                 onClick={() => setActiveTab('staff')}
-                className={`hidden md:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 ${
+                className={`hidden md:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 cursor-pointer ${
                   activeTab === 'staff'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -179,12 +197,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Utensils className="w-4 h-4" />
                 <span>{t('menuAndBooking')}</span>
-              </button>
+              </motion.button>
 
               {/* Desktop Only: Historique des Réservations */}
-              <button
+              <motion.button
+                whileTap={{ scale: 0.94 }}
                 onClick={() => setActiveTab('history')}
-                className={`hidden md:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 ${
+                className={`hidden md:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 cursor-pointer ${
                   activeTab === 'history'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -200,7 +219,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {historyCount}
                   </span>
                 )}
-              </button>
+              </motion.button>
 
               {/* Desktop Only: Meal Scanner Button for Serving Counter */}
               {onOpenUserCanteenScanner && (
@@ -246,9 +265,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
 
               {/* Desktop Only: Admin button */}
-              <button
+              <motion.button
+                whileTap={{ scale: 0.94 }}
                 onClick={() => setActiveTab('admin')}
-                className={`hidden md:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 ${
+                className={`hidden md:flex px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition items-center gap-1.5 cursor-pointer ${
                   activeTab === 'admin'
                     ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200'
@@ -256,7 +276,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
                 <span>{t('admin')}</span>
-              </button>
+              </motion.button>
 
               {/* Mobile Only: Active Admin Mode Indicator/Button */}
               {activeTab === 'admin' && (
@@ -291,6 +311,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         onOpenRegistration={onOpenRegistration}
         onOpenUserCanteenScanner={onOpenUserCanteenScanner}
         onOpenCanteenPoster={onOpenCanteenPoster}
+        onExportWeeklyCSV={onExportWeeklyCSV}
       />
     </>
   );

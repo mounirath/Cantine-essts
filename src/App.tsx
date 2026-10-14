@@ -33,8 +33,21 @@ import {
   clearPersistedHistory,
 } from './utils/ticketHistory';
 import { AppLogo } from './components/AppLogo';
+import { exportWeeklyReservationsCSV } from './utils/csvExport';
 import { Utensils, Shield, QrCode, Clock, ScanLine, Ticket, UserPlus, Camera, History } from 'lucide-react';
 import { useLanguage } from './i18n/LanguageContext';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const tabMotionVariants = {
+  initial: { opacity: 0, y: 16, scale: 0.995 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -16, scale: 0.995 },
+};
+
+const tabMotionTransition = {
+  duration: 0.26,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
 
 export default function App() {
   const { t, isRTL, language } = useLanguage();
@@ -196,6 +209,15 @@ export default function App() {
 
   const confirmedCount = reservations.filter((r) => r.status !== 'cancelled').length;
 
+  const handleExportWeeklyCSV = useCallback(async () => {
+    try {
+      await exportWeeklyReservationsCSV(todayDateStr, reservations);
+    } catch (err) {
+      console.error('Error exporting weekly CSV:', err);
+      alert("Une erreur est survenue lors de l'exportation CSV.");
+    }
+  }, [todayDateStr, reservations]);
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans w-full max-w-full overflow-x-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* 1. Simulator top bar for testing the 08:00 - 10:00 rule */}
@@ -220,266 +242,337 @@ export default function App() {
         hasActiveTicket={!!activeTicket}
         todayDateStr={todayDateStr}
         historyCount={historyTickets.length}
+        onExportWeeklyCSV={isAdminLoggedIn ? handleExportWeeklyCSV : undefined}
       />
 
       {/* 3. Main Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* A. STAFF VIEW: MENU & RESERVATION */}
-        {activeTab === 'staff' && (
-          <div className="space-y-6 sm:space-y-8">
-            {/* Active Ticket Quick Notification */}
-            {activeTicket && (
-              <div className="no-print bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <Ticket className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
-                        {t('activeTicketNotice')}
-                      </span>
-                      <span className="text-xs font-bold text-amber-800">
-                        {activeTicket.ticketCode || `N° #${activeTicket.id.slice(-4)}`}
-                      </span>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+          {/* A. STAFF VIEW: MENU & RESERVATION */}
+          {activeTab === 'staff' && (
+            <motion.div
+              key="staff"
+              variants={tabMotionVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={tabMotionTransition}
+              className="space-y-6 sm:space-y-8"
+            >
+              {/* Active Ticket Quick Notification */}
+              {activeTicket && (
+                <div className="no-print bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Ticket className="w-6 h-6" />
                     </div>
-                    <p className="text-sm font-black text-slate-900 mt-1">
-                      {activeTicket.staffName} &bull; {
-                        [
-                          ...(menu?.plats || []),
-                          ...(menu?.breakfastItems || []),
-                          ...(menu?.dinnerPlats || []),
-                        ].find((p) => p.id === activeTicket.selectedPlatId)?.name || 'Repas réservé'
-                      }
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                          {t('activeTicketNotice')}
+                        </span>
+                        <span className="text-xs font-bold text-amber-800">
+                          {activeTicket.ticketCode || `N° #${activeTicket.id.slice(-4)}`}
+                        </span>
+                      </div>
+                      <p className="text-sm font-black text-slate-900 mt-1">
+                        {activeTicket.staffName} &bull; {
+                          [
+                            ...(menu?.plats || []),
+                            ...(menu?.breakfastItems || []),
+                            ...(menu?.dinnerPlats || []),
+                          ].find((p) => p.id === activeTicket.selectedPlatId)?.name || 'Repas réservé'
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap shrink-0 self-stretch sm:self-auto justify-end">
+                    {activeTicket.status === 'confirmed' ? (
+                      <button
+                        onClick={() => setIsUserCanteenScannerOpen(true)}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-xs flex-1 sm:flex-initial"
+                        title="Scanner le QR Code affiché au comptoir pour confirmer que vous avez pris votre repas"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Scanner QR Cantine (Prise repas)</span>
+                      </button>
+                    ) : (
+                      <span className="px-3 py-2 rounded-xl bg-teal-100 text-teal-800 text-xs font-bold flex items-center gap-1.5">
+                        ✓ Repas déjà validé au comptoir
+                      </span>
+                    )}
+
+                    <button
+                      onClick={() => setActiveTab('ticket')}
+                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs flex-1 sm:flex-initial"
+                    >
+                      <Ticket className="w-4 h-4" />
+                      <span>{t('viewMyTicketBtn')}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('history')}
+                      className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs flex-1 sm:flex-initial"
+                      title="Consulter l'historique complet de vos tickets de repas"
+                    >
+                      <History className="w-4 h-4 text-emerald-400" />
+                      <span>Mon historique ({historyTickets.length})</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Critical Business Rule Banner */}
+              <TimeWindowBanner
+                timeStatus={timeStatus}
+                onSetSimulation={setSimulatedTime}
+                serviceHours={settings.serviceHours}
+              />
+
+              {/* Real-time Capacity Bar & Quick Nav */}
+              <div className="no-print bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex-1 w-full sm:w-auto">
+                  <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{t('capacityProgress', { count: confirmedCount, total: settings.capacityPerDay })}</span>
+                    </span>
+                    <span className="font-semibold text-slate-500">
+                      {Math.max(0, settings.capacityPerDay - confirmedCount) > 0
+                        ? t('placesRemainingCount', { count: settings.capacityPerDay - confirmedCount })
+                        : t('fullCapacityNotice')}
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        confirmedCount >= settings.capacityPerDay
+                          ? 'bg-rose-500'
+                          : confirmedCount / settings.capacityPerDay > 0.8
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{
+                        width: `${Math.min(100, (confirmedCount / settings.capacityPerDay) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end shrink-0">
+                  <a
+                    href="#menu-section"
+                    className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5"
+                  >
+                    <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{t('menuShort')}</span>
+                  </a>
+                  <a
+                    href="#reservation-section"
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs"
+                  >
+                    <span>{t('scrollToForm')}</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Menu of the day section */}
+              <MenuDisplay
+                menu={menu}
+                onSelectPlat={(platId, mealType) => {
+                  setSelectedPlatIdForForm(platId);
+                  if (mealType) setSelectedMealTypeForForm(mealType);
+                }}
+              />
+
+              {/* Reservation form section */}
+              <div id="reservation-section" className="pt-4">
+                <ReservationForm
+                  menu={menu}
+                  timeStatus={timeStatus}
+                  capacityTotal={settings.capacityPerDay}
+                  currentReservationsCount={confirmedCount}
+                  onReservationComplete={handleReservationComplete}
+                  todayDateStr={todayDateStr}
+                  selectedPlatIdProp={selectedPlatIdForForm}
+                  selectedMealTypeProp={selectedMealTypeForForm}
+                  initialBadgeProp={urlBadgeParam || undefined}
+                  restrictToAuthorizedUsers={settings.restrictToAuthorizedUsers}
+                  onOpenRegistration={() => setIsRegistrationModalOpen(true)}
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* B. ACTIVE TICKET VIEW */}
+          {activeTab === 'ticket' && (
+            <motion.div
+              key="ticket"
+              variants={tabMotionVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={tabMotionTransition}
+              className="space-y-6"
+            >
+              {activeTicket ? (
+                <>
+                  {/* Si l'agent a plusieurs tickets pour aujourd'hui, afficher le sélecteur */}
+                  {(() => {
+                    const todayTickets = historyTickets.filter((t) => t.date === todayDateStr && t.status !== 'cancelled');
+                    if (todayTickets.length > 1) {
+                      return (
+                        <div className="no-print max-w-xl mx-auto bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-1.5 overflow-x-auto">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase px-2 shrink-0">
+                            Vos tickets du jour :
+                          </span>
+                          {todayTickets.map((tk) => {
+                            const isCurrent = activeTicket.id === tk.id;
+                            const label = tk.mealType === 'breakfast' ? '🥐 Petit-déj' : tk.mealType === 'dinner' ? '🌙 Dîner' : '🍽️ Midi';
+                            return (
+                              <button
+                                key={tk.id}
+                                type="button"
+                                onClick={() => setActiveTicket(tk)}
+                                className={`flex-1 min-w-[130px] py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                                  isCurrent
+                                    ? 'bg-slate-900 text-white shadow-xs'
+                                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                <span>{label}</span>
+                                <span className="font-mono text-[10px] opacity-80">({tk.ticketCode})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  <div className="no-print text-center max-w-lg mx-auto">
+                    <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                      {t('officialTicketValidated')}
+                    </span>
+                    <h2 className="text-2xl font-black text-slate-900 mt-0.5">
+                      {t('ticketTitle')}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                      {t('ticketSubtitle')}
                     </p>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 flex-wrap shrink-0 self-stretch sm:self-auto justify-end">
-                  {activeTicket.status === 'confirmed' ? (
-                    <button
-                      onClick={() => setIsUserCanteenScannerOpen(true)}
-                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-xs flex-1 sm:flex-initial"
-                      title="Scanner le QR Code affiché au comptoir pour confirmer que vous avez pris votre repas"
-                    >
-                      <Camera className="w-4 h-4" />
-                      <span>Scanner QR Cantine (Prise repas)</span>
-                    </button>
-                  ) : (
-                    <span className="px-3 py-2 rounded-xl bg-teal-100 text-teal-800 text-xs font-bold flex items-center gap-1.5">
-                      ✓ Repas déjà validé au comptoir
-                    </span>
-                  )}
-
-                  <button
-                    onClick={() => setActiveTab('ticket')}
-                    className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs flex-1 sm:flex-initial"
-                  >
-                    <Ticket className="w-4 h-4" />
-                    <span>{t('viewMyTicketBtn')}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('history')}
-                    className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs flex-1 sm:flex-initial"
-                    title="Consulter l'historique complet de vos tickets de repas"
-                  >
-                    <History className="w-4 h-4 text-emerald-400" />
-                    <span>Mon historique ({historyTickets.length})</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Critical Business Rule Banner */}
-            <TimeWindowBanner
-              timeStatus={timeStatus}
-              onSetSimulation={setSimulatedTime}
-              serviceHours={settings.serviceHours}
-            />
-
-            {/* Real-time Capacity Bar & Quick Nav */}
-            <div className="no-print bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex-1 w-full sm:w-auto">
-                <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
-                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                    <Utensils className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{t('capacityProgress', { count: confirmedCount, total: settings.capacityPerDay })}</span>
-                  </span>
-                  <span className="font-semibold text-slate-500">
-                    {Math.max(0, settings.capacityPerDay - confirmedCount) > 0
-                      ? t('placesRemainingCount', { count: settings.capacityPerDay - confirmedCount })
-                      : t('fullCapacityNotice')}
-                  </span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      confirmedCount >= settings.capacityPerDay
-                        ? 'bg-rose-500'
-                        : confirmedCount / settings.capacityPerDay > 0.8
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                    }`}
-                    style={{
-                      width: `${Math.min(100, (confirmedCount / settings.capacityPerDay) * 100)}%`,
-                    }}
+                  <ReservationTicketCard
+                    reservation={activeTicket}
+                    menu={menu}
+                    settings={settings}
+                    timeStatus={timeStatus}
+                    onCancelSuccess={handleCancelTicketSuccess}
+                    onNewReservation={() => setActiveTab('staff')}
+                    onMealConfirmed={handleMealConfirmed}
                   />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end shrink-0">
-                <a
-                  href="#menu-section"
-                  className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5"
-                >
-                  <Utensils className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{t('menuShort')}</span>
-                </a>
-                <a
-                  href="#reservation-section"
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs"
-                >
-                  <span>{t('scrollToForm')}</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Menu of the day section */}
-            <MenuDisplay
-              menu={menu}
-              onSelectPlat={(platId, mealType) => {
-                setSelectedPlatIdForForm(platId);
-                if (mealType) setSelectedMealTypeForForm(mealType);
-              }}
-            />
-
-            {/* Reservation form section */}
-            <div id="reservation-section" className="pt-4">
-              <ReservationForm
-                menu={menu}
-                timeStatus={timeStatus}
-                capacityTotal={settings.capacityPerDay}
-                currentReservationsCount={confirmedCount}
-                onReservationComplete={handleReservationComplete}
-                todayDateStr={todayDateStr}
-                selectedPlatIdProp={selectedPlatIdForForm}
-                selectedMealTypeProp={selectedMealTypeForForm}
-                initialBadgeProp={urlBadgeParam || undefined}
-                restrictToAuthorizedUsers={settings.restrictToAuthorizedUsers}
-                onOpenRegistration={() => setIsRegistrationModalOpen(true)}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* B. ACTIVE TICKET VIEW */}
-        {activeTab === 'ticket' && activeTicket && (
-          <div className="space-y-6">
-            {/* Si l'agent a plusieurs tickets pour aujourd'hui, afficher le sélecteur */}
-            {(() => {
-              const todayTickets = historyTickets.filter((t) => t.date === todayDateStr && t.status !== 'cancelled');
-              if (todayTickets.length > 1) {
-                return (
-                  <div className="no-print max-w-xl mx-auto bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-1.5 overflow-x-auto">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase px-2 shrink-0">
-                      Vos tickets du jour :
-                    </span>
-                    {todayTickets.map((tk) => {
-                      const isCurrent = activeTicket.id === tk.id;
-                      const label = tk.mealType === 'breakfast' ? '🥐 Petit-déj' : tk.mealType === 'dinner' ? '🌙 Dîner' : '🍽️ Midi';
-                      return (
-                        <button
-                          key={tk.id}
-                          type="button"
-                          onClick={() => setActiveTicket(tk)}
-                          className={`flex-1 min-w-[130px] py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                            isCurrent
-                              ? 'bg-slate-900 text-white shadow-xs'
-                              : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          <span>{label}</span>
-                          <span className="font-mono text-[10px] opacity-80">({tk.ticketCode})</span>
-                        </button>
-                      );
-                    })}
+                </>
+              ) : (
+                <div className="no-print max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200/90 shadow-sm text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 mx-auto flex items-center justify-center shadow-xs">
+                    <Ticket className="w-8 h-8" />
                   </div>
-                );
-              }
-              return null;
-            })()}
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">Aucun ticket actif</h3>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+                      Vous n'avez pas de réservation en cours pour aujourd'hui, ou votre repas précédent a déjà été validé au comptoir.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('staff')}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                    >
+                      <Utensils className="w-4 h-4" />
+                      <span>Consulter le menu &amp; Réserver</span>
+                    </button>
+                    {historyTickets.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('history')}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <History className="w-4 h-4 text-emerald-600" />
+                        <span>Voir mon historique ({historyTickets.length})</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
 
-            <div className="no-print text-center max-w-lg mx-auto">
-              <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-                {t('officialTicketValidated')}
-              </span>
-              <h2 className="text-2xl font-black text-slate-900 mt-0.5">
-                {t('ticketTitle')}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                {t('ticketSubtitle')}
-              </p>
-            </div>
-
-            <ReservationTicketCard
-              reservation={activeTicket}
-              menu={menu}
-              settings={settings}
-              timeStatus={timeStatus}
-              onCancelSuccess={handleCancelTicketSuccess}
-              onNewReservation={() => setActiveTab('staff')}
-              onMealConfirmed={handleMealConfirmed}
-            />
-          </div>
-        )}
-
-        {/* B2. STAFF RESERVATION HISTORY VIEW (LOCAL STORAGE PERSISTED) */}
-        {activeTab === 'history' && (
-          <StaffReservationHistory
-            historyTickets={historyTickets}
-            currentMenu={menu}
-            settings={settings}
-            timeStatus={timeStatus}
-            todayDateStr={todayDateStr}
-            onSelectTicket={(selected) => {
-              setActiveTicket(selected);
-              setActiveTab('ticket');
-            }}
-            onClearHistory={() => {
-              clearPersistedHistory();
-              setHistoryTickets([]);
-            }}
-            onBackToMenu={() => setActiveTab('staff')}
-            onMealConfirmed={handleMealConfirmed}
-            onCancelSuccess={handleCancelTicketSuccess}
-          />
-        )}
-
-        {/* C. ADMIN VIEW */}
-        {activeTab === 'admin' && (
-          <div>
-            {!isAdminLoggedIn ? (
-              <AdminLogin
-                onLoginSuccess={() => setIsAdminLoggedIn(true)}
-                onCancel={() => setActiveTab('staff')}
-              />
-            ) : (
-              <AdminDashboard
-                initialMenu={menu}
-                initialReservations={reservations}
+          {/* B2. STAFF RESERVATION HISTORY VIEW (LOCAL STORAGE PERSISTED) */}
+          {activeTab === 'history' && (
+            <motion.div
+              key="history"
+              variants={tabMotionVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={tabMotionTransition}
+            >
+              <StaffReservationHistory
+                historyTickets={historyTickets}
+                currentMenu={menu}
                 settings={settings}
-                onLogout={() => {
-                  setIsAdminLoggedIn(false);
-                  setActiveTab('staff');
-                }}
-                onRefreshData={loadData}
-                onOpenScanner={() => setIsScannerOpen(true)}
+                timeStatus={timeStatus}
                 todayDateStr={todayDateStr}
+                onSelectTicket={(selected) => {
+                  setActiveTicket(selected);
+                  setActiveTab('ticket');
+                }}
+                onClearHistory={() => {
+                  clearPersistedHistory();
+                  setHistoryTickets([]);
+                }}
+                onBackToMenu={() => setActiveTab('staff')}
+                onMealConfirmed={handleMealConfirmed}
+                onCancelSuccess={handleCancelTicketSuccess}
               />
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+
+          {/* C. ADMIN VIEW */}
+          {activeTab === 'admin' && (
+            <motion.div
+              key="admin"
+              variants={tabMotionVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={tabMotionTransition}
+            >
+              {!isAdminLoggedIn ? (
+                <AdminLogin
+                  onLoginSuccess={() => setIsAdminLoggedIn(true)}
+                  onCancel={() => setActiveTab('staff')}
+                />
+              ) : (
+                <AdminDashboard
+                  initialMenu={menu}
+                  initialReservations={reservations}
+                  settings={settings}
+                  onLogout={() => {
+                    setIsAdminLoggedIn(false);
+                    setActiveTab('staff');
+                  }}
+                  onRefreshData={loadData}
+                  onOpenScanner={() => setIsScannerOpen(true)}
+                  todayDateStr={todayDateStr}
+                />
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* 4. Footer */}

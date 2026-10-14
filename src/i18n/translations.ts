@@ -184,6 +184,7 @@ export interface Translations {
   tabTodayReservations: string;
   tabMenusAndDishes: string;
   tabAuthorizedUsers: string;
+  tabAttendanceStats: string;
   tabSettings: string;
   statTotalReservations: string;
   statMealsServed: string;
@@ -459,6 +460,7 @@ export const translations: Record<Language, Translations> = {
     tabTodayReservations: 'Inscrits du Jour',
     tabMenusAndDishes: 'Menus & Plats',
     tabAuthorizedUsers: 'Personnel Autorisé',
+    tabAttendanceStats: 'Statistiques de Fréquentation',
     tabSettings: 'Paramètres',
     statTotalReservations: 'Total Inscrits',
     statMealsServed: 'Plateaux Servis',
@@ -732,6 +734,7 @@ export const translations: Record<Language, Translations> = {
     tabTodayReservations: 'مسجلو اليوم',
     tabMenusAndDishes: 'القوائم والأطباق',
     tabAuthorizedUsers: 'الموظفون المصرح لهم',
+    tabAttendanceStats: 'إحصائيات الإقبال',
     tabSettings: 'الإعدادات',
     statTotalReservations: 'إجمالي الحجوزات',
     statMealsServed: 'الوجبات المسلمة',
