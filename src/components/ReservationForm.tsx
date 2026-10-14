@@ -1503,20 +1503,11 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
         <UserBadgeScannerModal
           isOpen={isBadgeScannerOpen}
           onClose={() => setIsBadgeScannerOpen(false)}
-          onBadgeScanned={(scannedBadge) => {
-            const clean = scannedBadge.trim().toLowerCase();
-            const matched = authorizedUsersList.find(
-              (u) =>
-                u.badgeNumber.trim().toLowerCase() === clean ||
-                u.fullName.toLowerCase() === clean
-            );
-            if (matched) {
-              applyUserToForm(matched, true);
-            } else {
-              setStaffName(scannedBadge);
-            }
+          onUserIdentified={(user: AuthorizedUser) => {
+            applyUserToForm(user, true);
             setIsBadgeScannerOpen(false);
           }}
+          authorizedUsers={authorizedUsersList}
         />
       )}
     </form>

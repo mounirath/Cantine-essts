@@ -1035,6 +1035,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <span className="text-xs text-slate-500 font-medium mt-1 block">
                 Service midi : {appSettings.serviceHours}
+              </span>
+            </div>
           </div>
 
           {/* Répartition par service : Petit-déjeuner, Midi, Dîner */}
