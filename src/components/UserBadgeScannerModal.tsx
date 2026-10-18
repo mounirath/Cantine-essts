@@ -292,19 +292,20 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl">
-            {/* Petit-déjeuner */}
+            {/* Petit-déjeuner du Matin */}
             <button
               type="button"
               onClick={() => setTargetMeal('breakfast')}
-              className={`p-2 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+              className={`p-2.5 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                 targetMeal === 'breakfast'
                   ? 'bg-white text-amber-950 font-bold shadow-xs border border-amber-300 ring-2 ring-amber-400/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
-              <span className="text-base">🥐</span>
-              <span className="text-[11px] leading-tight font-bold">Petit-déj</span>
-              <span className="text-[9px] font-mono text-slate-500">
+              <span className="text-lg">🥐</span>
+              <span className="text-xs leading-tight font-black text-amber-950">Petit-déjeuner</span>
+              <span className="text-[10px] text-amber-800 font-medium">du Matin</span>
+              <span className="text-[9px] font-mono text-slate-500 mt-0.5">
                 {mealSchedules.breakfast.bookingStart} - {mealSchedules.breakfast.bookingEnd}
               </span>
               <span
@@ -314,23 +315,24 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
                     : 'bg-rose-100 text-rose-700'
                 }`}
               >
-                {mealSchedules.breakfast.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                {mealSchedules.breakfast.timeStatus.isOpen ? '🟢 Ouvert' : '🔴 Clos'}
               </span>
             </button>
 
-            {/* Menu du Déjeuner */}
+            {/* Menu du Déjeuner (Repas de midi) */}
             <button
               type="button"
               onClick={() => setTargetMeal('lunch')}
-              className={`p-2 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+              className={`p-2.5 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                 targetMeal === 'lunch'
                   ? 'bg-white text-emerald-950 font-bold shadow-xs border border-emerald-300 ring-2 ring-emerald-500/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
-              <span className="text-base">🍽️</span>
-              <span className="text-[11px] leading-tight font-bold">Déjeuner</span>
-              <span className="text-[9px] font-mono text-slate-500">
+              <span className="text-lg">🍽️</span>
+              <span className="text-xs leading-tight font-black text-emerald-950">Déjeuner</span>
+              <span className="text-[10px] text-emerald-800 font-medium">Repas de midi</span>
+              <span className="text-[9px] font-mono text-slate-500 mt-0.5">
                 {mealSchedules.lunch.bookingStart} - {mealSchedules.lunch.bookingEnd}
               </span>
               <span
@@ -340,7 +342,7 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
                     : 'bg-rose-100 text-rose-700'
                 }`}
               >
-                {mealSchedules.lunch.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                {mealSchedules.lunch.timeStatus.isOpen ? '🟢 Ouvert' : '🔴 Clos'}
               </span>
             </button>
 
@@ -348,15 +350,16 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
             <button
               type="button"
               onClick={() => setTargetMeal('dinner')}
-              className={`p-2 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+              className={`p-2.5 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                 targetMeal === 'dinner'
                   ? 'bg-white text-indigo-950 font-bold shadow-xs border border-indigo-300 ring-2 ring-indigo-500/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
-              <span className="text-base">🌙</span>
-              <span className="text-[11px] leading-tight font-bold">Dîner</span>
-              <span className="text-[9px] font-mono text-slate-500">
+              <span className="text-lg">🌙</span>
+              <span className="text-xs leading-tight font-black text-indigo-950">Menu du Soir</span>
+              <span className="text-[10px] text-indigo-800 font-medium">(Dîner)</span>
+              <span className="text-[9px] font-mono text-slate-500 mt-0.5">
                 {mealSchedules.dinner.bookingStart} - {mealSchedules.dinner.bookingEnd}
               </span>
               <span
@@ -366,7 +369,7 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
                     : 'bg-rose-100 text-rose-700'
                 }`}
               >
-                {mealSchedules.dinner.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                {mealSchedules.dinner.timeStatus.isOpen ? '🟢 Ouvert' : '🔴 Clos'}
               </span>
             </button>
           </div>

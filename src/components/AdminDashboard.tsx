@@ -55,6 +55,7 @@ import {
   Sun,
   Moon,
   BarChart3,
+  Loader2,
 } from 'lucide-react';
 import { formatFrenchDate } from '../utils/timeUtils';
 import { exportReservationsToExcel } from '../utils/excelExport';
@@ -233,6 +234,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [appSettings, setAppSettings] = useState<AppSettings>(settings);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  React.useEffect(() => {
+    if (settings) {
+      setAppSettings(settings);
+    }
+  }, [settings]);
 
   // Logo state
   const [customLogoUrl, setCustomLogoUrl] = useState<string>(settings.logoUrl || '');
@@ -834,18 +841,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // ----------------------------------------------------
   // SETTINGS & PASSWORD CHANGE
   // ----------------------------------------------------
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveSettings = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     setIsSavingSettings(true);
     setSettingsMessage(null);
     try {
       const lunchCap = Number(appSettings.lunchCapacity || appSettings.capacityPerDay || 75);
-      await dbService.updateSettings({
-        establishmentName: appSettings.establishmentName,
-        capacityPerDay: lunchCap,
-        lunchCapacity: lunchCap,
-        breakfastCapacity: Number(appSettings.breakfastCapacity || 50),
-        dinnerCapacity: Number(appSettings.dinnerCapacity || 50),
+      const updatedData: Partial<AppSettings> = {
+        ...appSettings,
+        establishmentName: (appSettings.establishmentName || '').trim() || 'ESSTS - École Supérieure des Sciences et Technologies du Sport',
+        capacityPerDay: lunchCap > 0 ? lunchCap : 75,
+        lunchCapacity: lunchCap > 0 ? lunchCap : 75,
+        breakfastCapacity: Number(appSettings.breakfastCapacity) > 0 ? Number(appSettings.breakfastCapacity) : 50,
+        dinnerCapacity: Number(appSettings.dinnerCapacity) > 0 ? Number(appSettings.dinnerCapacity) : 50,
         breakfastBookingStart: appSettings.breakfastBookingStart || '06:30',
         breakfastBookingEnd: appSettings.breakfastBookingEnd || '09:00',
         breakfastServiceHours: appSettings.breakfastServiceHours || '07h00 - 09h00',
@@ -857,12 +867,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         dinnerServiceHours: appSettings.dinnerServiceHours || '19h00 - 21h00',
         restrictToAuthorizedUsers: !!appSettings.restrictToAuthorizedUsers,
         enableQrExpressBooking: appSettings.enableQrExpressBooking !== false,
-      });
-      setSettingsMessage({ type: 'success', text: 'Paramètres des 3 repas et horaires enregistrés avec succès.' });
+      };
+      const saved = await dbService.updateSettings(updatedData);
+      setAppSettings(saved);
+      setSettingsMessage({ type: 'success', text: 'Paramètres de l’établissement et horaires des 3 repas enregistrés avec succès !' });
       await onRefreshData();
-      setTimeout(() => setSettingsMessage(null), 3500);
-    } catch {
-      setSettingsMessage({ type: 'error', text: 'Impossible d’enregistrer les paramètres.' });
+      setTimeout(() => setSettingsMessage(null), 4000);
+    } catch (err: any) {
+      console.error('Erreur handleSaveSettings:', err);
+      setSettingsMessage({ type: 'error', text: `Impossible d’enregistrer les paramètres : ${err?.message || 'Erreur réseau'}` });
     } finally {
       setIsSavingSettings(false);
     }
@@ -2537,7 +2550,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleSaveSettings} className="space-y-6">
+            <form onSubmit={handleSaveSettings} noValidate className="space-y-6">
               {/* Nom de l'établissement */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -2546,7 +2559,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   required
-                  value={appSettings.establishmentName}
+                  value={appSettings.establishmentName || ''}
                   onChange={(e) =>
                     setAppSettings({ ...appSettings, establishmentName: e.target.value })
                   }
@@ -2883,14 +2896,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </label>
               </div>
 
-              <div className="pt-4 flex justify-end">
+              <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-100">
+                <div>
+                  {settingsMessage && (
+                    <div
+                      className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                        settingsMessage.type === 'success'
+                          ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                          : 'bg-rose-50 border border-rose-200 text-rose-800'
+                      }`}
+                    >
+                      {settingsMessage.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span className="font-semibold">{settingsMessage.text}</span>
+                    </div>
+                  )}
+                </div>
+
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSaveSettings}
                   disabled={isSavingSettings}
-                  className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition"
+                  className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition shadow-md active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Enregistrer les paramètres de l'établissement</span>
+                  {isSavingSettings ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                      <span>Enregistrement en cours...</span>
+                    </>
+                  ) : settingsMessage?.type === 'success' ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>Paramètres enregistrés !</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 text-emerald-400" />
+                      <span>Enregistrer les paramètres de l'établissement</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -17,11 +17,15 @@ import {
   Camera,
   History,
   FileSpreadsheet,
+  Sun,
+  Moon,
+  LayoutGrid,
 } from 'lucide-react';
-import { AppSettings, TimeCheckResult } from '../types';
+import { AppSettings, TimeCheckResult, MealType } from '../types';
 import { AppLogo } from './AppLogo';
 import { LanguageSelector } from './LanguageSelector';
 import { useLanguage } from '../i18n/LanguageContext';
+import { getAllMealSchedules } from '../utils/timeUtils';
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -41,6 +45,8 @@ interface NavigationDrawerProps {
   onOpenUserCanteenScanner?: () => void;
   onOpenCanteenPoster?: () => void;
   onExportWeeklyCSV?: () => void;
+  categoryPage?: MealType | 'all';
+  onSelectCategoryPage?: (page: MealType | 'all') => void;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -61,10 +67,15 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   onOpenUserCanteenScanner,
   onOpenCanteenPoster,
   onExportWeeklyCSV,
+  categoryPage = 'lunch',
+  onSelectCategoryPage,
 }) => {
   const { t, formatDate, isRTL, language } = useLanguage();
   const drawerRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  const now = new Date();
+  const mealSchedules = getAllMealSchedules(now, settings);
 
   // 1. Lock body scroll while open
   useEffect(() => {
@@ -219,21 +230,134 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               Navigation
             </span>
 
-            <button
-              type="button"
-              onClick={() => handleNavClick('staff')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition text-left rtl:text-right ${
-                activeTab === 'staff'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Utensils className={`w-5 h-5 ${activeTab === 'staff' ? 'text-white' : 'text-emerald-600'}`} />
-                <span>{t('menuAndBooking')}</span>
-              </div>
-              <ChevronRight className={`w-4 h-4 rtl:rotate-180 opacity-60 ${activeTab === 'staff' ? 'text-white' : 'text-slate-400'}`} />
-            </button>
+            {/* Section Pages par Service */}
+            <div className="space-y-1 mb-3">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 block">
+                Pages par Catégorie de Repas
+              </span>
+
+              {/* 1. Page Petit-déjeuner */}
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectCategoryPage?.('breakfast');
+                  setActiveTab('staff');
+                  handleClose();
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition text-left rtl:text-right cursor-pointer ${
+                  activeTab === 'staff' && categoryPage === 'breakfast'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-xs'
+                    : 'text-slate-700 hover:bg-amber-50/60'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🥐</span>
+                  <div>
+                    <span className="block font-bold">1. Petit-déjeuner du Matin</span>
+                    <span className="text-[10px] opacity-75 font-mono">
+                      Résa : {mealSchedules?.breakfast.bookingStart} - {mealSchedules?.breakfast.bookingEnd}
+                    </span>
+                  </div>
+                </div>
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                  mealSchedules?.breakfast.timeStatus.isOpen
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {mealSchedules?.breakfast.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                </span>
+              </button>
+
+              {/* 2. Page Déjeuner */}
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectCategoryPage?.('lunch');
+                  setActiveTab('staff');
+                  handleClose();
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition text-left rtl:text-right cursor-pointer ${
+                  activeTab === 'staff' && categoryPage === 'lunch'
+                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    : 'text-slate-700 hover:bg-emerald-50/60'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🍽️</span>
+                  <div>
+                    <span className="block font-bold">2. Menu du Déjeuner (Midi)</span>
+                    <span className="text-[10px] opacity-75 font-mono">
+                      Résa : {mealSchedules?.lunch.bookingStart} - {mealSchedules?.lunch.bookingEnd}
+                    </span>
+                  </div>
+                </div>
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                  mealSchedules?.lunch.timeStatus.isOpen
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {mealSchedules?.lunch.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                </span>
+              </button>
+
+              {/* 3. Page Dîner */}
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectCategoryPage?.('dinner');
+                  setActiveTab('staff');
+                  handleClose();
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition text-left rtl:text-right cursor-pointer ${
+                  activeTab === 'staff' && categoryPage === 'dinner'
+                    ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                    : 'text-slate-700 hover:bg-indigo-50/60'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🌙</span>
+                  <div>
+                    <span className="block font-bold">3. Menu du Soir (Dîner)</span>
+                    <span className="text-[10px] opacity-75 font-mono">
+                      Résa : {mealSchedules?.dinner.bookingStart} - {mealSchedules?.dinner.bookingEnd}
+                    </span>
+                  </div>
+                </div>
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                  mealSchedules?.dinner.timeStatus.isOpen
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {mealSchedules?.dinner.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                </span>
+              </button>
+
+              {/* 4. Vue Complète */}
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectCategoryPage?.('all');
+                  setActiveTab('staff');
+                  handleClose();
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition text-left rtl:text-right cursor-pointer ${
+                  activeTab === 'staff' && categoryPage === 'all'
+                    ? 'bg-slate-900 text-white font-bold shadow-xs'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <LayoutGrid className="w-4 h-4 text-slate-500" />
+                  <div>
+                    <span className="block font-bold">4. Vue Complète (Tous les repas)</span>
+                    <span className="text-[10px] opacity-75">
+                      3 services séparés sur la même page
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-60" />
+              </button>
+            </div>
 
             {hasActiveTicket && (
               <button

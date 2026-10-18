@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Utensils, QrCode, ShieldCheck, Ticket, Calendar, Clock, ScanLine, UserPlus, Camera, History, FileSpreadsheet } from 'lucide-react';
-import { AppSettings, TimeCheckResult } from '../types';
+import { AppSettings, TimeCheckResult, MealType } from '../types';
 import { AppLogo } from './AppLogo';
 import { LanguageSelector } from './LanguageSelector';
 import { NavigationDrawer } from './NavigationDrawer';
@@ -21,6 +21,8 @@ interface NavbarProps {
   onOpenUserCanteenScanner?: () => void;
   onOpenCanteenPoster?: () => void;
   onExportWeeklyCSV?: () => void;
+  categoryPage?: MealType | 'all';
+  onSelectCategoryPage?: (page: MealType | 'all') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +39,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenUserCanteenScanner,
   onOpenCanteenPoster,
   onExportWeeklyCSV,
+  categoryPage = 'lunch',
+  onSelectCategoryPage,
 }) => {
   const { t, formatDate, isRTL, language } = useLanguage();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -185,6 +189,76 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
+              {/* Desktop Category Page Switcher */}
+              <div className="hidden xl:flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectCategoryPage?.('breakfast');
+                    setActiveTab('staff');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    activeTab === 'staff' && categoryPage === 'breakfast'
+                      ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                  title="Page Petit-déjeuner du Matin"
+                >
+                  <span>🥐</span>
+                  <span>Petit-déj</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectCategoryPage?.('lunch');
+                    setActiveTab('staff');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    activeTab === 'staff' && categoryPage === 'lunch'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                  title="Page Menu du Déjeuner (Repas de midi)"
+                >
+                  <span>🍽️</span>
+                  <span>Midi</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectCategoryPage?.('dinner');
+                    setActiveTab('staff');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    activeTab === 'staff' && categoryPage === 'dinner'
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                  title="Page Menu du Soir (Dîner)"
+                >
+                  <span>🌙</span>
+                  <span>Dîner</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectCategoryPage?.('all');
+                    setActiveTab('staff');
+                  }}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                    activeTab === 'staff' && categoryPage === 'all'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
+                  }`}
+                  title="Tous les repas sur une seule vue"
+                >
+                  <span>Tous</span>
+                </button>
+              </div>
+
               {/* Desktop Only: Menu & Booking button (mobile uses hamburger drawer) */}
               <motion.button
                 whileTap={{ scale: 0.94 }}
@@ -312,6 +386,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         onOpenUserCanteenScanner={onOpenUserCanteenScanner}
         onOpenCanteenPoster={onOpenCanteenPoster}
         onExportWeeklyCSV={onExportWeeklyCSV}
+        categoryPage={categoryPage}
+        onSelectCategoryPage={onSelectCategoryPage}
       />
     </>
   );

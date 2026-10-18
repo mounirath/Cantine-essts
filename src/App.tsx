@@ -14,6 +14,7 @@ import {
 import { TimeSimulatorBar } from './components/TimeSimulatorBar';
 import { Navbar } from './components/Navbar';
 import { TimeWindowBanner } from './components/TimeWindowBanner';
+import { CategoryPageSelector } from './components/CategoryPageSelector';
 import { MenuDisplay } from './components/MenuDisplay';
 import { ReservationForm } from './components/ReservationForm';
 import { ReservationTicketCard } from './components/ReservationTicketCard';
@@ -58,6 +59,7 @@ export default function App() {
   const [menu, setMenu] = useState<DailyMenu | null>(null);
   const [selectedPlatIdForForm, setSelectedPlatIdForForm] = useState<string | undefined>(undefined);
   const [selectedMealTypeForForm, setSelectedMealTypeForForm] = useState<MealType>('lunch');
+  const [activeCategoryPage, setActiveCategoryPage] = useState<MealType | 'all'>('lunch');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
@@ -216,6 +218,15 @@ export default function App() {
   }
 
   const confirmedCount = reservations.filter((r) => r.status !== 'cancelled').length;
+  const confirmedCountBreakfast = reservations.filter(
+    (r) => r.status !== 'cancelled' && r.mealType === 'breakfast'
+  ).length;
+  const confirmedCountLunch = reservations.filter(
+    (r) => r.status !== 'cancelled' && (r.mealType === 'lunch' || !r.mealType)
+  ).length;
+  const confirmedCountDinner = reservations.filter(
+    (r) => r.status !== 'cancelled' && r.mealType === 'dinner'
+  ).length;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans w-full max-w-full overflow-x-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -242,6 +253,13 @@ export default function App() {
         todayDateStr={todayDateStr}
         historyCount={historyTickets.length}
         onExportWeeklyCSV={isAdminLoggedIn ? handleExportWeeklyCSV : undefined}
+        categoryPage={activeCategoryPage}
+        onSelectCategoryPage={(page) => {
+          setActiveCategoryPage(page);
+          if (page !== 'all') {
+            setSelectedMealTypeForForm(page);
+          }
+        }}
       />
 
       {/* 3. Main Content Container */}
@@ -322,82 +340,168 @@ export default function App() {
                 </div>
               )}
 
-              {/* Critical Business Rule Banner */}
+              {/* 1. Sélecteur de Page par Catégorie de Repas */}
+              <CategoryPageSelector
+                activePage={activeCategoryPage}
+                onSelectPage={(page) => {
+                  setActiveCategoryPage(page);
+                  if (page !== 'all') {
+                    setSelectedMealTypeForForm(page);
+                  }
+                }}
+                settings={settings}
+                effectiveTime={effectiveTime}
+                counts={{
+                  breakfast: confirmedCountBreakfast,
+                  lunch: confirmedCountLunch,
+                  dinner: confirmedCountDinner,
+                }}
+              />
+
+              {/* 2. Bannière des Horaires Spécifiques à la Page Active */}
               <TimeWindowBanner
                 timeStatus={timeStatus}
                 onSetSimulation={setSimulatedTime}
                 serviceHours={settings.serviceHours}
                 settings={settings}
                 effectiveTime={effectiveTime}
-              />
-
-              {/* Real-time Capacity Bar & Quick Nav */}
-              <div className="no-print bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex-1 w-full sm:w-auto">
-                  <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
-                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                      <Utensils className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{t('capacityProgress', { count: confirmedCount, total: settings.capacityPerDay })}</span>
-                    </span>
-                    <span className="font-semibold text-slate-500">
-                      {Math.max(0, settings.capacityPerDay - confirmedCount) > 0
-                        ? t('placesRemainingCount', { count: settings.capacityPerDay - confirmedCount })
-                        : t('fullCapacityNotice')}
-                    </span>
-                  </div>
-                  <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        confirmedCount >= settings.capacityPerDay
-                          ? 'bg-rose-500'
-                          : confirmedCount / settings.capacityPerDay > 0.8
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-500'
-                      }`}
-                      style={{
-                        width: `${Math.min(100, (confirmedCount / settings.capacityPerDay) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end shrink-0">
-                  <a
-                    href="#menu-section"
-                    className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5"
-                  >
-                    <Utensils className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{t('menuShort')}</span>
-                  </a>
-                  <a
-                    href="#reservation-section"
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs"
-                  >
-                    <span>{t('scrollToForm')}</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Menu of the day section */}
-              <MenuDisplay
-                menu={menu}
-                onSelectPlat={(platId, mealType) => {
-                  setSelectedPlatIdForForm(platId);
-                  if (mealType) setSelectedMealTypeForForm(mealType);
+                categoryPage={activeCategoryPage}
+                onSelectCategoryPage={(page) => {
+                  setActiveCategoryPage(page);
+                  if (page !== 'all') {
+                    setSelectedMealTypeForForm(page);
+                  }
                 }}
               />
 
-              {/* Reservation form section */}
+              {/* 3. Jauge de Capacité Spécifique au Service Actif */}
+              {(() => {
+                const currentServiceCapacity =
+                  activeCategoryPage === 'breakfast'
+                    ? settings.breakfastCapacity || 50
+                    : activeCategoryPage === 'dinner'
+                    ? settings.dinnerCapacity || 50
+                    : settings.lunchCapacity || settings.capacityPerDay || 75;
+
+                const currentServiceCount =
+                  activeCategoryPage === 'breakfast'
+                    ? confirmedCountBreakfast
+                    : activeCategoryPage === 'dinner'
+                    ? confirmedCountDinner
+                    : confirmedCountLunch;
+
+                const serviceCategoryLabel =
+                  activeCategoryPage === 'breakfast'
+                    ? 'Petit-déjeuner du Matin'
+                    : activeCategoryPage === 'dinner'
+                    ? 'Menu du Soir (Dîner)'
+                    : 'Menu du Déjeuner (Repas de midi)';
+
+                const remainingPlaces = Math.max(0, currentServiceCapacity - currentServiceCount);
+
+                return (
+                  <div className="no-print bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 w-full sm:w-auto">
+                      <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>
+                            Capacité {serviceCategoryLabel} : <strong>{currentServiceCount}</strong> / <strong>{currentServiceCapacity}</strong> couverts
+                          </span>
+                        </span>
+                        <span className={`font-semibold ${remainingPlaces > 0 ? 'text-slate-600' : 'text-rose-600'}`}>
+                          {remainingPlaces > 0
+                            ? `${remainingPlaces} places restantes`
+                            : 'Complet pour ce service'}
+                        </span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            currentServiceCount >= currentServiceCapacity
+                              ? 'bg-rose-500'
+                              : currentServiceCount / currentServiceCapacity > 0.8
+                              ? 'bg-amber-500'
+                              : activeCategoryPage === 'breakfast'
+                              ? 'bg-amber-500'
+                              : activeCategoryPage === 'dinner'
+                              ? 'bg-indigo-600'
+                              : 'bg-emerald-500'
+                          }`}
+                          style={{
+                            width: `${Math.min(100, (currentServiceCount / currentServiceCapacity) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end shrink-0">
+                      <a
+                        href="#menu-section"
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5"
+                      >
+                        <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Voir Menu</span>
+                      </a>
+                      <a
+                        href="#reservation-section"
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-xs"
+                      >
+                        <span>Réserver ce Repas</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 4. Affichage du Menu de la Page Active */}
+              <MenuDisplay
+                menu={menu}
+                settings={settings}
+                effectiveTime={effectiveTime}
+                selectedMealTypeTab={activeCategoryPage}
+                onChangeMealView={(view) => {
+                  setActiveCategoryPage(view);
+                  if (view !== 'all') {
+                    setSelectedMealTypeForForm(view);
+                  }
+                }}
+                onSelectPlat={(platId, mealType) => {
+                  setSelectedPlatIdForForm(platId);
+                  if (mealType) {
+                    setSelectedMealTypeForForm(mealType);
+                    setActiveCategoryPage(mealType);
+                  }
+                }}
+              />
+
+              {/* 5. Formulaire de Réservation pour la Catégorie Active */}
               <div id="reservation-section" className="pt-4">
                 <ReservationForm
                   menu={menu}
                   timeStatus={timeStatus}
-                  capacityTotal={settings.capacityPerDay}
-                  currentReservationsCount={confirmedCount}
+                  capacityTotal={
+                    activeCategoryPage === 'breakfast'
+                      ? settings.breakfastCapacity || 50
+                      : activeCategoryPage === 'dinner'
+                      ? settings.dinnerCapacity || 50
+                      : settings.lunchCapacity || settings.capacityPerDay || 75
+                  }
+                  currentReservationsCount={
+                    activeCategoryPage === 'breakfast'
+                      ? confirmedCountBreakfast
+                      : activeCategoryPage === 'dinner'
+                      ? confirmedCountDinner
+                      : confirmedCountLunch
+                  }
                   onReservationComplete={handleReservationComplete}
                   todayDateStr={todayDateStr}
                   selectedPlatIdProp={selectedPlatIdForForm}
-                  selectedMealTypeProp={selectedMealTypeForForm}
+                  selectedMealTypeProp={
+                    activeCategoryPage === 'all'
+                      ? selectedMealTypeForForm
+                      : activeCategoryPage
+                  }
                   initialBadgeProp={urlBadgeParam || undefined}
                   restrictToAuthorizedUsers={settings.restrictToAuthorizedUsers}
                   enableQrExpressBooking={settings.enableQrExpressBooking}

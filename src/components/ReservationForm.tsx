@@ -186,6 +186,12 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
   };
 
   useEffect(() => {
+    if (selectedMealTypeProp) {
+      setActiveMealType(selectedMealTypeProp);
+    }
+  }, [selectedMealTypeProp]);
+
+  useEffect(() => {
     const loadWhitelist = async () => {
       try {
         const { dbService } = await import('../services/dbService');
