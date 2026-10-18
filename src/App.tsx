@@ -327,6 +327,8 @@ export default function App() {
                 timeStatus={timeStatus}
                 onSetSimulation={setSimulatedTime}
                 serviceHours={settings.serviceHours}
+                settings={settings}
+                effectiveTime={effectiveTime}
               />
 
               {/* Real-time Capacity Bar & Quick Nav */}
@@ -399,6 +401,8 @@ export default function App() {
                   initialBadgeProp={urlBadgeParam || undefined}
                   restrictToAuthorizedUsers={settings.restrictToAuthorizedUsers}
                   enableQrExpressBooking={settings.enableQrExpressBooking}
+                  settings={settings}
+                  effectiveTime={effectiveTime}
                   onOpenRegistration={() => setIsRegistrationModalOpen(true)}
                   onSetSimulation={setSimulatedTime}
                 />

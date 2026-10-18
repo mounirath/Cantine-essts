@@ -91,10 +91,11 @@ export const TimeSimulatorBar: React.FC<TimeSimulatorBarProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setSpecificHour(7, 30)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1"
+                className="px-2.5 py-1 rounded bg-amber-900/30 hover:bg-amber-900/50 text-amber-200 border border-amber-600/40 flex items-center gap-1 font-medium"
               >
+                <Play className="w-3 h-3 fill-amber-300" />
                 <span>07:30</span>
-                <span className="text-[10px] text-rose-300 font-semibold">({t('slotBeforeOpen')})</span>
+                <span className="text-[10px] text-amber-300 font-bold">(🥐 Petit-déj ouvert)</span>
               </button>
 
               <button
@@ -103,31 +104,32 @@ export const TimeSimulatorBar: React.FC<TimeSimulatorBarProps> = ({
               >
                 <Play className="w-3 h-3 fill-emerald-300" />
                 <span>08:45</span>
-                <span className="text-[10px] text-emerald-300 font-bold">({t('slotInWindow')})</span>
+                <span className="text-[10px] text-emerald-300 font-bold">(🍽️ Déjeuner ouvert)</span>
               </button>
 
               <button
-                onClick={() => setSpecificHour(9, 50)}
-                className="px-2.5 py-1 rounded bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 border border-emerald-600/40 flex items-center gap-1"
+                onClick={() => setSpecificHour(15, 30)}
+                className="px-2.5 py-1 rounded bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-200 border border-indigo-600/50 flex items-center gap-1 font-medium"
               >
-                <span>09:50</span>
-                <span className="text-[10px] text-amber-300 font-semibold">({t('slotNearEnd')})</span>
+                <Play className="w-3 h-3 fill-indigo-300" />
+                <span>15:30</span>
+                <span className="text-[10px] text-indigo-300 font-bold">(🌙 Dîner ouvert)</span>
               </button>
 
               <button
                 onClick={() => setSpecificHour(10, 15)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1"
+                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1"
               >
                 <span>10:15</span>
-                <span className="text-[10px] text-rose-300 font-semibold">({t('slotAfterWindow')})</span>
+                <span className="text-[10px] text-rose-300 font-semibold">(Déjeuner clos)</span>
               </button>
 
               <button
-                onClick={() => setSpecificHour(12, 30)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1"
+                onClick={() => setSpecificHour(21, 30)}
+                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1"
               >
-                <span>12:30</span>
-                <span className="text-[10px] text-rose-300 font-semibold">({t('slotServiceLunch')})</span>
+                <span>21:30</span>
+                <span className="text-[10px] text-rose-300 font-semibold">(Tous fermés)</span>
               </button>
             </div>
           </div>

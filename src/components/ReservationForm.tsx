@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { DailyMenu, TimeCheckResult, Reservation, AuthorizedUser, MealType, MEAL_TYPES_CONFIG } from '../types';
+import { DailyMenu, TimeCheckResult, Reservation, AuthorizedUser, MealType, MEAL_TYPES_CONFIG, AppSettings } from '../types';
+import { getAllMealSchedules } from '../utils/timeUtils';
 import {
   Utensils,
   Check,
@@ -39,6 +40,8 @@ interface ReservationFormProps {
   initialBadgeProp?: string;
   restrictToAuthorizedUsers?: boolean;
   enableQrExpressBooking?: boolean;
+  settings?: AppSettings;
+  effectiveTime?: Date;
   onOpenRegistration?: () => void;
   onSetSimulation?: (time: Date | null) => void;
 }
@@ -87,6 +90,8 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
   initialBadgeProp,
   restrictToAuthorizedUsers = true,
   enableQrExpressBooking = true,
+  settings,
+  effectiveTime,
   onOpenRegistration,
   onSetSimulation,
 }) => {
@@ -95,6 +100,15 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
   // Mode de réservation : repas unique ou pack journée complète (3 repas)
   const [bookingMode, setBookingMode] = useState<'single' | 'all-day'>('single');
   const [activeMealType, setActiveMealType] = useState<MealType>(selectedMealTypeProp);
+
+  // Horaires début et fin configurés pour chacun des 3 repas
+  const now = effectiveTime || new Date();
+  const mealSchedules = useMemo(() => {
+    return getAllMealSchedules(now, settings || {});
+  }, [now, settings]);
+
+  const activeMealSchedule = mealSchedules[activeMealType];
+  const activeMealIsOpen = activeMealSchedule.timeStatus.isOpen;
 
   // Coordonnées agent
   const [staffName, setStaffName] = useState('');
@@ -157,13 +171,16 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
   };
 
   // Remplissage instantané depuis QR Badge ou Whitelist
-  const applyUserToForm = (user: AuthorizedUser, fromQr = true) => {
+  const applyUserToForm = (user: AuthorizedUser, fromQr = true, targetMeal?: MealType) => {
     setVerifiedUser(user);
     setStaffName(user.fullName);
     setStaffDepartment(user.department);
     if (user.email) setStaffEmail(user.email);
     if (user.dietaryNotes) setDietaryNotes(user.dietaryNotes);
     if (fromQr) setIdentifiedByQr(true);
+    if (targetMeal) {
+      setActiveMealType(targetMeal);
+    }
     setErrorMessage(null);
     checkExistingBookings(user.fullName);
   };
@@ -294,8 +311,16 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
     setErrorMessage(null);
     setSuccessInfo(null);
 
-    if (!timeStatus.isOpen) {
-      setErrorMessage(t('outsideHoursError'));
+    if (bookingMode === 'single' && !activeMealIsOpen) {
+      setErrorMessage(
+        activeMealSchedule.timeStatus.message ||
+        `Les réservations pour le ${activeMealSchedule.label} sont actuellement closes (${activeMealSchedule.bookingStart} - ${activeMealSchedule.bookingEnd}).`
+      );
+      return;
+    }
+
+    if (bookingMode === 'all-day' && !Object.values(mealSchedules).some((m) => m.timeStatus.isOpen)) {
+      setErrorMessage('Toutes les réservations de repas sont actuellement closes pour la journée.');
       return;
     }
 
@@ -630,21 +655,22 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
           </div>
         ) : enableQrExpressBooking ? (
           <div
-            className={`mb-5 p-4 rounded-2xl border transition-all ${
-              !timeStatus.isOpen
+            className={`mb-5 p-4 sm:p-5 rounded-2xl border transition-all ${
+              !activeMealIsOpen
                 ? 'bg-slate-900 border-slate-800 text-slate-300 shadow-xs'
                 : isFull
                 ? 'bg-slate-900 border-slate-800 text-slate-300 shadow-xs'
                 : 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-slate-800 shadow-sm'
             }`}
           >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            {/* Header du bloc Scanner express */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
               <div className="flex items-center gap-3">
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                    !timeStatus.isOpen || isFull
+                    !activeMealIsOpen || isFull
                       ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                      : 'bg-emerald-500 text-slate-950'
+                      : 'bg-emerald-500 text-slate-950 font-bold'
                   }`}
                 >
                   <QrCode className="w-5 h-5" />
@@ -653,15 +679,15 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
                       className={`text-xs font-black uppercase tracking-wider ${
-                        !timeStatus.isOpen || isFull ? 'text-slate-400' : 'text-emerald-400'
+                        !activeMealIsOpen || isFull ? 'text-slate-400' : 'text-emerald-400'
                       }`}
                     >
-                      {t('scanBadgeToBook')}
+                      Scanner mon Badge QR (Réservation express)
                     </span>
-                    {!timeStatus.isOpen ? (
+                    {!activeMealIsOpen ? (
                       <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/40 flex items-center gap-1">
                         <Lock className="w-2.5 h-2.5" />
-                        <span>Réservations Closes</span>
+                        <span>Réservations Closes pour ce service</span>
                       </span>
                     ) : isFull ? (
                       <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
@@ -669,56 +695,39 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
-                        Sans Saisie
+                        {activeMealSchedule.timeStatus.timeRemaining || 'Ouvert'}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-slate-300 mt-0.5">
-                    {!timeStatus.isOpen
-                      ? `Les réservations sont closes pour aujourd'hui (${timeStatus.startTime} - ${timeStatus.endTime}). Le scanner de réservation express par badge QR est désactivé.`
-                      : isFull
-                      ? "La capacité maximale de repas pour aujourd'hui est atteinte."
-                      : t('scanBadgeSubtitle')}
+                    Sélectionnez votre repas puis scannez votre badge ou QR code pour réserver sans saisie.
                   </p>
-                  {!timeStatus.isOpen && onSetSimulation && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date();
-                        d.setHours(8, 45, 0, 0);
-                        onSetSimulation(d);
-                      }}
-                      className="mt-2 text-xs font-bold text-amber-300 hover:text-amber-200 underline flex items-center gap-1.5 transition cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Simuler 08h45 (Ouvrir les réservations pour tester)</span>
-                    </button>
-                  )}
                 </div>
               </div>
 
+              {/* Bouton Scanner mon Badge */}
               <button
                 type="button"
-                disabled={!timeStatus.isOpen || isFull}
+                disabled={!activeMealIsOpen || isFull}
                 onClick={() => {
-                  if (timeStatus.isOpen && !isFull) {
+                  if (activeMealIsOpen && !isFull) {
                     setIsBadgeScannerOpen(true);
                   }
                 }}
                 className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shrink-0 ${
-                  !timeStatus.isOpen || isFull
+                  !activeMealIsOpen || isFull
                     ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed opacity-80 shadow-none'
                     : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm cursor-pointer'
                 }`}
                 title={
-                  !timeStatus.isOpen
-                    ? `Réservations closes pour aujourd'hui (${timeStatus.startTime} - ${timeStatus.endTime})`
+                  !activeMealIsOpen
+                    ? `Réservations closes pour ${activeMealSchedule.label} (${activeMealSchedule.bookingStart} - ${activeMealSchedule.bookingEnd})`
                     : isFull
                     ? 'Capacité maximale atteinte'
-                    : 'Scanner votre badge QR'
+                    : `Scanner votre badge pour ${activeMealSchedule.label}`
                 }
               >
-                {!timeStatus.isOpen ? (
+                {!activeMealIsOpen ? (
                   <>
                     <Lock className="w-4 h-4 text-rose-400" />
                     <span>Désactivé (Réservations Closes)</span>
@@ -731,10 +740,185 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
                 ) : (
                   <>
                     <Camera className="w-4 h-4" />
-                    <span>Scanner mon Badge</span>
+                    <span>Scanner mon Badge ({activeMealSchedule.shortLabel})</span>
                   </>
                 )}
               </button>
+            </div>
+
+            {/* Sélecteur des 3 Repas & Horaires Début - Fin */}
+            <div className="pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Services disponibles &bull; Horaires début &amp; fin de réservation :
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Cliquez pour basculer
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* 1. Petit-déjeuner */}
+                <button
+                  type="button"
+                  onClick={() => setActiveMealType('breakfast')}
+                  className={`p-2.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeMealType === 'breakfast'
+                      ? 'border-amber-400/80 bg-amber-500/15 text-white ring-2 ring-amber-400/30'
+                      : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🥐</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-white">Petit-déj</span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                            mealSchedules.breakfast.timeStatus.isOpen
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {mealSchedules.breakfast.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                        Résa : {mealSchedules.breakfast.bookingStart} - {mealSchedules.breakfast.bookingEnd}
+                      </span>
+                    </div>
+                  </div>
+                  {alreadyBookedMeals.breakfast && (
+                    <span className="text-[10px] text-amber-300 font-bold">✓ Réservé</span>
+                  )}
+                </button>
+
+                {/* 2. Menu du Déjeuner */}
+                <button
+                  type="button"
+                  onClick={() => setActiveMealType('lunch')}
+                  className={`p-2.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeMealType === 'lunch'
+                      ? 'border-emerald-400/80 bg-emerald-500/15 text-white ring-2 ring-emerald-400/30'
+                      : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🍽️</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-white">Déjeuner (Midi)</span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                            mealSchedules.lunch.timeStatus.isOpen
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {mealSchedules.lunch.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                        Résa : {mealSchedules.lunch.bookingStart} - {mealSchedules.lunch.bookingEnd}
+                      </span>
+                    </div>
+                  </div>
+                  {alreadyBookedMeals.lunch && (
+                    <span className="text-[10px] text-emerald-300 font-bold">✓ Réservé</span>
+                  )}
+                </button>
+
+                {/* 3. Menu du Soir (Dîner) */}
+                <button
+                  type="button"
+                  onClick={() => setActiveMealType('dinner')}
+                  className={`p-2.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeMealType === 'dinner'
+                      ? 'border-indigo-400/80 bg-indigo-500/15 text-white ring-2 ring-indigo-400/30'
+                      : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🌙</span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-white">Dîner (Soir)</span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                            mealSchedules.dinner.timeStatus.isOpen
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {mealSchedules.dinner.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                        Résa : {mealSchedules.dinner.bookingStart} - {mealSchedules.dinner.bookingEnd}
+                      </span>
+                    </div>
+                  </div>
+                  {alreadyBookedMeals.dinner && (
+                    <span className="text-[10px] text-indigo-300 font-bold">✓ Réservé</span>
+                  )}
+                </button>
+              </div>
+
+              {/* Message descriptif et simulation si fermé */}
+              {!activeMealIsOpen && (
+                <div className="mt-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300">
+                  <p>
+                    <span className="font-bold text-rose-300">RÉSERVATIONS CLOSES POUR CE REPAS : </span>
+                    Le {activeMealSchedule.label} est réservable uniquement entre{' '}
+                    <strong className="text-white font-mono">{activeMealSchedule.bookingStart}</strong> et{' '}
+                    <strong className="text-white font-mono">{activeMealSchedule.bookingEnd}</strong>. Le bouton « Scanner mon Badge » reste désactivé pour ce service jusqu'à la prochaine ouverture.
+                  </p>
+                  {onSetSimulation && (
+                    <div className="mt-2 pt-2 border-t border-slate-800 flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Tester par simulation :
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setHours(7, 30, 0, 0);
+                          onSetSimulation(d);
+                          setActiveMealType('breakfast');
+                        }}
+                        className="px-2 py-0.5 rounded bg-amber-900/40 hover:bg-amber-900/60 border border-amber-600/50 text-[11px] text-amber-200 transition font-medium"
+                      >
+                        07h30 (Petit-déj)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setHours(8, 45, 0, 0);
+                          onSetSimulation(d);
+                          setActiveMealType('lunch');
+                        }}
+                        className="px-2 py-0.5 rounded bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-600/50 text-[11px] text-emerald-200 transition font-medium"
+                      >
+                        08h45 (Déjeuner)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setHours(15, 30, 0, 0);
+                          onSetSimulation(d);
+                          setActiveMealType('dinner');
+                        }}
+                        className="px-2 py-0.5 rounded bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-600/50 text-[11px] text-indigo-200 transition font-medium"
+                      >
+                        15h30 (Dîner)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : null}
@@ -882,106 +1066,175 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
         {bookingMode === 'single' ? (
           /* Sélecteur de repas en 3 tuiles */
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Petit-déjeuner */}
+            {/* 1. Petit-déjeuner */}
             <button
               type="button"
               onClick={() => setActiveMealType('breakfast')}
-              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between cursor-pointer ${
                 activeMealType === 'breakfast'
-                  ? 'border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/30 text-amber-950'
+                  ? 'border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/30 text-amber-950 shadow-xs'
                   : 'border-slate-200 hover:border-amber-300 bg-white text-slate-700'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg">
-                  <Sun className="w-5 h-5" />
+                  <Sun className="w-5 h-5 text-amber-600" />
                 </div>
-                {activeMealType === 'breakfast' ? (
-                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs">
-                    <Check className="w-3 h-3" />
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      mealSchedules.breakfast.timeStatus.isOpen
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}
+                  >
+                    {mealSchedules.breakfast.timeStatus.isOpen ? '🟢 Ouvert' : '🔴 Clôturé'}
                   </span>
-                ) : (
-                  <span className="w-5 h-5 rounded-full border border-slate-300" />
-                )}
+                  {activeMealType === 'breakfast' ? (
+                    <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs">
+                      <Check className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    <span className="w-5 h-5 rounded-full border border-slate-300" />
+                  )}
+                </div>
               </div>
-              <div className="mt-3">
-                <span className="font-black text-sm block">1. Petit-déjeuner</span>
-                <span className="text-xs text-slate-500 block mt-0.5">
-                  Matin &bull; 07h00 - 09h00
+
+              <div className="mt-3 space-y-1">
+                <span className="font-black text-sm block text-slate-900">
+                  1. Petit-déjeuner du Matin
                 </span>
+                <div className="text-[11px] text-slate-600 space-y-0.5">
+                  <p className="font-mono font-medium text-amber-900">
+                    🕒 Résa : <strong>{mealSchedules.breakfast.bookingStart}</strong> - <strong>{mealSchedules.breakfast.bookingEnd}</strong>
+                  </p>
+                  <p className="text-slate-500">
+                    🍽️ Service : {mealSchedules.breakfast.serviceHours}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Capacité max : {mealSchedules.breakfast.capacity} couverts
+                  </p>
+                </div>
+
                 {alreadyBookedMeals.breakfast && (
                   <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900">
-                    Déjà réservé pour ce matin
+                    ✓ Déjà réservé pour ce matin
                   </span>
                 )}
               </div>
             </button>
 
-            {/* Repas de midi */}
+            {/* 2. Repas de midi */}
             <button
               type="button"
               onClick={() => setActiveMealType('lunch')}
-              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between cursor-pointer ${
                 activeMealType === 'lunch'
-                  ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/30 text-emerald-950'
+                  ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/30 text-emerald-950 shadow-xs'
                   : 'border-slate-200 hover:border-emerald-300 bg-white text-slate-700'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg">
-                  <Utensils className="w-5 h-5" />
+                  <Utensils className="w-5 h-5 text-emerald-600" />
                 </div>
-                {activeMealType === 'lunch' ? (
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
-                    <Check className="w-3 h-3" />
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      mealSchedules.lunch.timeStatus.isOpen
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}
+                  >
+                    {mealSchedules.lunch.timeStatus.isOpen ? '🟢 Ouvert' : '🔴 Clôturé'}
                   </span>
-                ) : (
-                  <span className="w-5 h-5 rounded-full border border-slate-300" />
-                )}
+                  {activeMealType === 'lunch' ? (
+                    <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
+                      <Check className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    <span className="w-5 h-5 rounded-full border border-slate-300" />
+                  )}
+                </div>
               </div>
-              <div className="mt-3">
-                <span className="font-black text-sm block">2. Repas de midi (Déjeuner)</span>
-                <span className="text-xs text-slate-500 block mt-0.5">
-                  Midi &bull; 11h45 - 13h45
+
+              <div className="mt-3 space-y-1">
+                <span className="font-black text-sm block text-slate-900">
+                  2. Menu du Déjeuner (Midi)
                 </span>
+                <div className="text-[11px] text-slate-600 space-y-0.5">
+                  <p className="font-mono font-medium text-emerald-900">
+                    🕒 Résa : <strong>{mealSchedules.lunch.bookingStart}</strong> - <strong>{mealSchedules.lunch.bookingEnd}</strong>
+                  </p>
+                  <p className="text-slate-500">
+                    🍽️ Service : {mealSchedules.lunch.serviceHours}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Capacité max : {mealSchedules.lunch.capacity} couverts
+                  </p>
+                </div>
+
                 {alreadyBookedMeals.lunch && (
                   <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-900">
-                    Déjà réservé pour ce midi
+                    ✓ Déjà réservé pour ce midi
                   </span>
                 )}
               </div>
             </button>
 
-            {/* Dîner */}
+            {/* 3. Dîner */}
             <button
               type="button"
               onClick={() => setActiveMealType('dinner')}
-              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition relative flex flex-col justify-between cursor-pointer ${
                 activeMealType === 'dinner'
-                  ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-600/30 text-indigo-950'
+                  ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-600/30 text-indigo-950 shadow-xs'
                   : 'border-slate-200 hover:border-indigo-300 bg-white text-slate-700'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
-                  <Moon className="w-5 h-5" />
+                  <Moon className="w-5 h-5 text-indigo-600" />
                 </div>
-                {activeMealType === 'dinner' ? (
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">
-                    <Check className="w-3 h-3" />
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      mealSchedules.dinner.timeStatus.isOpen
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}
+                  >
+                    {mealSchedules.dinner.timeStatus.isOpen ? '🟢 Ouvert' : '🔴 Clôturé'}
                   </span>
-                ) : (
-                  <span className="w-5 h-5 rounded-full border border-slate-300" />
-                )}
+                  {activeMealType === 'dinner' ? (
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">
+                      <Check className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    <span className="w-5 h-5 rounded-full border border-slate-300" />
+                  )}
+                </div>
               </div>
-              <div className="mt-3">
-                <span className="font-black text-sm block">3. Dîner (Repas du soir)</span>
-                <span className="text-xs text-slate-500 block mt-0.5">
-                  Soir &bull; 19h00 - 21h00
+
+              <div className="mt-3 space-y-1">
+                <span className="font-black text-sm block text-slate-900">
+                  3. Menu du Soir (Dîner)
                 </span>
+                <div className="text-[11px] text-slate-600 space-y-0.5">
+                  <p className="font-mono font-medium text-indigo-900">
+                    🕒 Résa : <strong>{mealSchedules.dinner.bookingStart}</strong> - <strong>{mealSchedules.dinner.bookingEnd}</strong>
+                  </p>
+                  <p className="text-slate-500">
+                    🍽️ Service : {mealSchedules.dinner.serviceHours}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Capacité max : {mealSchedules.dinner.capacity} couverts
+                  </p>
+                </div>
+
                 {alreadyBookedMeals.dinner && (
                   <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-900">
-                    Déjà réservé pour ce soir
+                    ✓ Déjà réservé pour ce soir
                   </span>
                 )}
               </div>
@@ -1553,9 +1806,17 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
 
           <button
             type="submit"
-            disabled={isSubmitting || !timeStatus.isOpen || isFull}
+            disabled={
+              isSubmitting ||
+              (bookingMode === 'single'
+                ? !activeMealIsOpen
+                : !Object.values(mealSchedules).some((m) => m.timeStatus.isOpen)) ||
+              isFull
+            }
             className={`w-full sm:w-auto px-8 py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition transform hover:scale-[1.02] active:scale-[0.98] ${
-              !timeStatus.isOpen || isFull
+              (bookingMode === 'single'
+                ? !activeMealIsOpen
+                : !Object.values(mealSchedules).some((m) => m.timeStatus.isOpen)) || isFull
                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                 : bookingMode === 'all-day'
                 ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 text-white shadow-emerald-500/25'
@@ -1566,10 +1827,16 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/25'
             }`}
           >
-            <Sparkles className="w-4 h-4" />
+            {bookingMode === 'single' && !activeMealIsOpen ? (
+              <Lock className="w-4 h-4 text-slate-500" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
             <span>
               {isSubmitting
                 ? 'Validation en cours...'
+                : bookingMode === 'single' && !activeMealIsOpen
+                ? `Réservations Closes (${activeMealSchedule.bookingStart} - ${activeMealSchedule.bookingEnd})`
                 : bookingMode === 'all-day'
                 ? 'Valider mes 3 Repas de la Journée'
                 : activeMealType === 'breakfast'
@@ -1587,12 +1854,15 @@ export const ReservationForm: React.FC<ReservationFormProps> = ({
         <UserBadgeScannerModal
           isOpen={isBadgeScannerOpen}
           onClose={() => setIsBadgeScannerOpen(false)}
-          onUserIdentified={(user: AuthorizedUser) => {
-            applyUserToForm(user, true);
+          onUserIdentified={(user: AuthorizedUser, targetMeal?: MealType) => {
+            applyUserToForm(user, true, targetMeal || activeMealType);
             setIsBadgeScannerOpen(false);
           }}
           authorizedUsers={authorizedUsersList}
           timeStatus={timeStatus}
+          settings={settings}
+          selectedMealType={activeMealType}
+          effectiveTime={effectiveTime}
         />
       )}
     </form>

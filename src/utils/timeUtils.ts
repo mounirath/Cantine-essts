@@ -1,4 +1,4 @@
-import { TimeCheckResult } from '../types';
+import { TimeCheckResult, MealType, AppSettings } from '../types';
 
 /**
  * Parses "HH:mm" string into minutes from midnight (0 to 1439)
@@ -119,3 +119,104 @@ export function evaluateBookingWindow(
     endTime: windowEnd,
   };
 }
+
+export interface MealScheduleInfo {
+  mealType: MealType;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  bookingStart: string;
+  bookingEnd: string;
+  serviceHours: string;
+  capacity: number;
+  timeStatus: TimeCheckResult;
+}
+
+/**
+ * Returns complete schedule and real-time status for a specific meal
+ */
+export function getMealScheduleInfo(
+  now: Date,
+  mealType: MealType,
+  settings: Partial<AppSettings> = {}
+): MealScheduleInfo {
+  let bookingStart = '08:00';
+  let bookingEnd = '10:00';
+  let serviceHours = '11h45 - 13h45';
+  let capacity = settings.capacityPerDay || 75;
+  let label = 'Menu du Déjeuner (Repas de midi)';
+  let shortLabel = 'Déjeuner';
+  let icon = '🍽️';
+
+  if (mealType === 'breakfast') {
+    bookingStart = settings.breakfastBookingStart || '06:30';
+    bookingEnd = settings.breakfastBookingEnd || '09:00';
+    serviceHours = settings.breakfastServiceHours || '07h00 - 09h00';
+    capacity = settings.breakfastCapacity || 50;
+    label = 'Petit-déjeuner du Matin';
+    shortLabel = 'Petit-déj';
+    icon = '🥐';
+  } else if (mealType === 'dinner') {
+    bookingStart = settings.dinnerBookingStart || '14:00';
+    bookingEnd = settings.dinnerBookingEnd || '18:00';
+    serviceHours = settings.dinnerServiceHours || '19h00 - 21h00';
+    capacity = settings.dinnerCapacity || 50;
+    label = 'Menu du Soir (Dîner)';
+    shortLabel = 'Dîner';
+    icon = '🌙';
+  } else {
+    // Lunch
+    bookingStart = settings.bookingWindowStart || '08:00';
+    bookingEnd = settings.bookingWindowEnd || '10:00';
+    serviceHours = settings.serviceHours || '11h45 - 13h45';
+    capacity = settings.lunchCapacity || settings.capacityPerDay || 75;
+    label = 'Menu du Déjeuner (Repas de midi)';
+    shortLabel = 'Déjeuner';
+    icon = '🍽️';
+  }
+
+  const baseResult = evaluateBookingWindow(now, bookingStart, bookingEnd);
+
+  let message = baseResult.message;
+  if (baseResult.state === 'BEFORE_WINDOW') {
+    message = `Réservations ${label} fermées. Ouverture stricte à ${bookingStart} (dans ${baseResult.timeRemaining}).`;
+  } else if (baseResult.state === 'AFTER_WINDOW') {
+    message = `Réservations ${label} closes pour aujourd'hui. Clôture effectuée à ${bookingEnd} pour la cuisine.`;
+  } else {
+    message = `Réservations ${label} ouvertes ! Clôture à ${bookingEnd} (reste : ${baseResult.timeRemaining}).`;
+  }
+
+  const enrichedTimeStatus: TimeCheckResult = {
+    ...baseResult,
+    message,
+    mealType,
+    mealLabel: label,
+  };
+
+  return {
+    mealType,
+    label,
+    shortLabel,
+    icon,
+    bookingStart,
+    bookingEnd,
+    serviceHours,
+    capacity,
+    timeStatus: enrichedTimeStatus,
+  };
+}
+
+/**
+ * Returns the status for all 3 meals simultaneously
+ */
+export function getAllMealSchedules(
+  now: Date,
+  settings: Partial<AppSettings> = {}
+): Record<MealType, MealScheduleInfo> {
+  return {
+    breakfast: getMealScheduleInfo(now, 'breakfast', settings),
+    lunch: getMealScheduleInfo(now, 'lunch', settings),
+    dinner: getMealScheduleInfo(now, 'dinner', settings),
+  };
+}
+

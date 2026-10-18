@@ -1,24 +1,32 @@
 import React from 'react';
 import { Clock, CheckCircle2, Lock, Sparkles } from 'lucide-react';
-import { TimeCheckResult } from '../types';
+import { TimeCheckResult, AppSettings } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { getAllMealSchedules } from '../utils/timeUtils';
 
 interface TimeWindowBannerProps {
   timeStatus: TimeCheckResult;
   onSetSimulation?: (time: Date | null) => void;
   serviceHours: string;
+  settings?: AppSettings;
+  effectiveTime?: Date;
 }
 
 export const TimeWindowBanner: React.FC<TimeWindowBannerProps> = ({
   timeStatus,
   onSetSimulation,
   serviceHours,
+  settings,
+  effectiveTime,
 }) => {
   const { isOpen, state, startTime, endTime, timeRemaining, currentDisplayTime } = timeStatus;
   const { t } = useLanguage();
 
+  const now = effectiveTime || new Date();
+  const mealSchedules = settings ? getAllMealSchedules(now, settings) : null;
+
   return (
-    <div className="no-print mb-6">
+    <div className="no-print mb-6 space-y-2">
       {isOpen ? (
         <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 sm:p-5 shadow-lg shadow-emerald-700/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-emerald-500/30">
           <div className="flex items-start sm:items-center gap-3.5">
@@ -124,6 +132,50 @@ export const TimeWindowBanner: React.FC<TimeWindowBannerProps> = ({
                 <span>{t('bannerSimulateBtn')}</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Barre des 3 Services : Petit-déjeuner, Déjeuner, Dîner */}
+      {mealSchedules && (
+        <div className="bg-slate-100 border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-slate-500" />
+            <span>Horaires de réservation Début &bull; Fin :</span>
+          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Petit-déjeuner */}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800">
+              <span>🥐 Petit-déj :</span>
+              <strong className="font-mono text-[11px]">{mealSchedules.breakfast.bookingStart} - {mealSchedules.breakfast.bookingEnd}</strong>
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                mealSchedules.breakfast.timeStatus.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {mealSchedules.breakfast.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+              </span>
+            </span>
+
+            {/* Déjeuner */}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800">
+              <span>🍽️ Déjeuner :</span>
+              <strong className="font-mono text-[11px]">{mealSchedules.lunch.bookingStart} - {mealSchedules.lunch.bookingEnd}</strong>
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                mealSchedules.lunch.timeStatus.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {mealSchedules.lunch.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+              </span>
+            </span>
+
+            {/* Dîner */}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800">
+              <span>🌙 Dîner :</span>
+              <strong className="font-mono text-[11px]">{mealSchedules.dinner.bookingStart} - {mealSchedules.dinner.bookingEnd}</strong>
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                mealSchedules.dinner.timeStatus.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {mealSchedules.dinner.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+              </span>
+            </span>
           </div>
         </div>
       )}

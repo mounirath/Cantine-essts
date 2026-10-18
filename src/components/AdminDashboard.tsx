@@ -839,14 +839,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setIsSavingSettings(true);
     setSettingsMessage(null);
     try {
+      const lunchCap = Number(appSettings.lunchCapacity || appSettings.capacityPerDay || 75);
       await dbService.updateSettings({
         establishmentName: appSettings.establishmentName,
-        capacityPerDay: Number(appSettings.capacityPerDay),
-        bookingWindowStart: appSettings.bookingWindowStart,
-        bookingWindowEnd: appSettings.bookingWindowEnd,
-        serviceHours: appSettings.serviceHours,
+        capacityPerDay: lunchCap,
+        lunchCapacity: lunchCap,
+        breakfastCapacity: Number(appSettings.breakfastCapacity || 50),
+        dinnerCapacity: Number(appSettings.dinnerCapacity || 50),
+        breakfastBookingStart: appSettings.breakfastBookingStart || '06:30',
+        breakfastBookingEnd: appSettings.breakfastBookingEnd || '09:00',
+        breakfastServiceHours: appSettings.breakfastServiceHours || '07h00 - 09h00',
+        bookingWindowStart: appSettings.bookingWindowStart || '08:00',
+        bookingWindowEnd: appSettings.bookingWindowEnd || '10:00',
+        serviceHours: appSettings.serviceHours || '11h45 - 13h45',
+        dinnerBookingStart: appSettings.dinnerBookingStart || '14:00',
+        dinnerBookingEnd: appSettings.dinnerBookingEnd || '18:00',
+        dinnerServiceHours: appSettings.dinnerServiceHours || '19h00 - 21h00',
+        restrictToAuthorizedUsers: !!appSettings.restrictToAuthorizedUsers,
+        enableQrExpressBooking: appSettings.enableQrExpressBooking !== false,
       });
-      setSettingsMessage({ type: 'success', text: 'Paramètres mis à jour avec succès.' });
+      setSettingsMessage({ type: 'success', text: 'Paramètres des 3 repas et horaires enregistrés avec succès.' });
       await onRefreshData();
       setTimeout(() => setSettingsMessage(null), 3500);
     } catch {
@@ -2525,89 +2537,299 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nom de l'établissement
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={appSettings.establishmentName}
-                    onChange={(e) =>
-                      setAppSettings({ ...appSettings, establishmentName: e.target.value })
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-medium"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Capacité maximale de repas par jour (couverts)
-                  </label>
-                  <input
-                    type="number"
-                    min={5}
-                    max={500}
-                    required
-                    value={appSettings.capacityPerDay}
-                    onChange={(e) =>
-                      setAppSettings({ ...appSettings, capacityPerDay: Number(e.target.value) })
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold font-mono"
-                  />
-                  <span className="text-[11px] text-slate-500 mt-1 block">
-                    Bloque automatiquement les réservations une fois cette jauge atteinte.
-                  </span>
-                </div>
+            <form onSubmit={handleSaveSettings} className="space-y-6">
+              {/* Nom de l'établissement */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Nom de l'établissement
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={appSettings.establishmentName}
+                  onChange={(e) =>
+                    setAppSettings({ ...appSettings, establishmentName: e.target.value })
+                  }
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-medium bg-white"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Début des réservations (Heure stricte)
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={appSettings.bookingWindowStart}
-                    onChange={(e) =>
-                      setAppSettings({ ...appSettings, bookingWindowStart: e.target.value })
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold"
-                  />
+              {/* 3 Cartes de Service : Petit-déjeuner, Déjeuner, Dîner */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                    <span>Configuration de la Capacité &amp; Horaires par Service</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Début &bull; Fin &bull; Capacité &bull; Service
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Clôture des réservations (Heure stricte)
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={appSettings.bookingWindowEnd}
-                    onChange={(e) =>
-                      setAppSettings({ ...appSettings, bookingWindowEnd: e.target.value })
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold"
-                  />
+                {/* 1. PETIT-DÉJEUNER DU MATIN */}
+                <div className="p-4 sm:p-5 rounded-2xl border border-amber-200 bg-amber-50/50 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base shadow-xs">
+                        <Sun className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-sm text-slate-900 block">
+                          Petit-déjeuner du Matin
+                        </span>
+                        <span className="text-[11px] text-amber-800 font-medium block">
+                          Formules café, viennoiseries, pain frais et jus de fruits
+                        </span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      Service Matin
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Capacité max (couverts)
+                      </label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={500}
+                        required
+                        value={appSettings.breakfastCapacity ?? 50}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, breakfastCapacity: Number(e.target.value) })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs font-bold font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Début réservation (Heure)
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={appSettings.breakfastBookingStart || '06:30'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, breakfastBookingStart: e.target.value })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Fin réservation (Clôture)
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={appSettings.breakfastBookingEnd || '09:00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, breakfastBookingEnd: e.target.value })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Horaires service réfectoire
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={appSettings.breakfastServiceHours || '07h00 - 09h00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, breakfastServiceHours: e.target.value })
+                        }
+                        placeholder="07h00 - 09h00"
+                        className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white text-xs font-medium"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Horaires de service au réfectoire
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={appSettings.serviceHours}
-                    onChange={(e) =>
-                      setAppSettings({ ...appSettings, serviceHours: e.target.value })
-                    }
-                    placeholder="11h45 - 13h45"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-medium"
-                  />
+                {/* 2. MENU DU DÉJEUNER (REPAS DE MIDI) */}
+                <div className="p-4 sm:p-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base shadow-xs">
+                        <Utensils className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-sm text-slate-900 block">
+                          Menu du Déjeuner (Repas de midi)
+                        </span>
+                        <span className="text-[11px] text-emerald-800 font-medium block">
+                          Entrées au choix, plats chauds du midi &amp; desserts
+                        </span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      Service Midi
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Capacité max (couverts)
+                      </label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={500}
+                        required
+                        value={appSettings.lunchCapacity ?? appSettings.capacityPerDay ?? 75}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setAppSettings({
+                            ...appSettings,
+                            lunchCapacity: val,
+                            capacityPerDay: val,
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-bold font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Début réservation (Heure)
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={appSettings.bookingWindowStart || '08:00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, bookingWindowStart: e.target.value })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Fin réservation (Clôture)
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={appSettings.bookingWindowEnd || '10:00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, bookingWindowEnd: e.target.value })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Horaires service réfectoire
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={appSettings.serviceHours || '11h45 - 13h45'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, serviceHours: e.target.value })
+                        }
+                        placeholder="11h45 - 13h45"
+                        className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. MENU DU SOIR (DÎNER) */}
+                <div className="p-4 sm:p-5 rounded-2xl border border-indigo-200 bg-indigo-50/50 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base shadow-xs">
+                        <Moon className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-sm text-slate-900 block">
+                          Menu du Soir (Dîner)
+                        </span>
+                        <span className="text-[11px] text-indigo-800 font-medium block">
+                          Formules du soir, soupes chaudes &amp; plats équilibrés
+                        </span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                      Service Soir
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Capacité max (couverts)
+                      </label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={500}
+                        required
+                        value={appSettings.dinnerCapacity ?? 50}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, dinnerCapacity: Number(e.target.value) })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-indigo-300 bg-white text-xs font-bold font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Début réservation (Heure)
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={appSettings.dinnerBookingStart || '14:00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, dinnerBookingStart: e.target.value })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-indigo-300 bg-white text-xs font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Fin réservation (Clôture)
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={appSettings.dinnerBookingEnd || '18:00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, dinnerBookingEnd: e.target.value })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-indigo-300 bg-white text-xs font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Horaires service réfectoire
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={appSettings.dinnerServiceHours || '19h00 - 21h00'}
+                        onChange={(e) =>
+                          setAppSettings({ ...appSettings, dinnerServiceHours: e.target.value })
+                        }
+                        placeholder="19h00 - 21h00"
+                        className="w-full px-3 py-2 rounded-xl border border-indigo-300 bg-white text-xs font-medium"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2637,7 +2859,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* Réservation express par Badge QR */}
-              <div className="pt-2">
+              <div className="pt-1">
                 <label className="flex items-start gap-2.5 cursor-pointer p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100 transition">
                   <input
                     type="checkbox"
@@ -2652,10 +2874,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   />
                   <div className="text-xs">
                     <span className="font-bold text-slate-900 block">
-                      Réservation express par Badge QR : Proposer le bouton « Scanner mon Badge QR »
+                      Scanner mon Badge QR (Réservation express) : Activer le bouton de scan
                     </span>
                     <span className="text-slate-500 text-[11px] block mt-0.5">
-                      Permet aux agents et étudiants de scanner leur badge ou QR code pour remplir automatiquement leur réservation.
+                      Permet aux agents et étudiants de scanner directement leur badge QR pour réserver le <strong>Petit-déjeuner du Matin</strong>, le <strong>Menu du Déjeuner</strong> ou le <strong>Menu du Soir (Dîner)</strong> selon leurs horaires début et fin configurés.
                     </span>
                   </div>
                 </label>

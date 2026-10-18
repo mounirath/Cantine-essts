@@ -13,14 +13,22 @@ import {
   ShieldCheck,
   RefreshCw,
   Lock,
+  Sun,
+  Utensils,
+  Moon,
 } from 'lucide-react';
+import { MealType, AppSettings } from '../types';
+import { getAllMealSchedules } from '../utils/timeUtils';
 
 interface UserBadgeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUserIdentified: (user: AuthorizedUser) => void;
+  onUserIdentified: (user: AuthorizedUser, mealType?: MealType) => void;
   authorizedUsers?: AuthorizedUser[];
   timeStatus?: TimeCheckResult;
+  settings?: AppSettings;
+  selectedMealType?: MealType;
+  effectiveTime?: Date;
 }
 
 export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
@@ -29,7 +37,11 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
   onUserIdentified,
   authorizedUsers = [],
   timeStatus,
+  settings,
+  selectedMealType = 'lunch',
+  effectiveTime,
 }) => {
+  const [targetMeal, setTargetMeal] = useState<MealType>(selectedMealType);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState('');
@@ -134,7 +146,7 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
         } catch {}
 
         setTimeout(() => {
-          onUserIdentified(user);
+          onUserIdentified(user, targetMeal);
           stopCamera();
           onClose();
         }, 900);
@@ -213,6 +225,12 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
   };
 
   useEffect(() => {
+    if (selectedMealType) {
+      setTargetMeal(selectedMealType);
+    }
+  }, [selectedMealType]);
+
+  useEffect(() => {
     if (isOpen) {
       isHandlingRef.current = false;
       setIdentifiedUser(null);
@@ -233,6 +251,10 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
 
   if (!isOpen) return null;
 
+  const now = effectiveTime || new Date();
+  const mealSchedules = getAllMealSchedules(now, settings || {});
+  const activeMealSchedule = mealSchedules[targetMeal];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative my-8 animate-in fade-in zoom-in-95 duration-150">
@@ -248,7 +270,7 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
         </button>
 
         {/* Modal Header */}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
             <QrCode className="w-5 h-5" />
           </div>
@@ -257,20 +279,115 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
               Scanner mon Badge QR
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Scannez pour remplir automatiquement vos coordonnées.
+              Réservation express &bull; Sélection du service ci-dessous
             </p>
           </div>
         </div>
 
-        {/* Notice si réservations closes */}
-        {timeStatus && !timeStatus.isOpen && (
+        {/* Sélecteur des 3 Services : Petit-déjeuner, Déjeuner, Dîner */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-700">Service à réserver :</span>
+            <span className="text-[10px] text-slate-400 font-mono">Horaires Début &bull; Fin</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl">
+            {/* Petit-déjeuner */}
+            <button
+              type="button"
+              onClick={() => setTargetMeal('breakfast')}
+              className={`p-2 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                targetMeal === 'breakfast'
+                  ? 'bg-white text-amber-950 font-bold shadow-xs border border-amber-300 ring-2 ring-amber-400/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <span className="text-base">🥐</span>
+              <span className="text-[11px] leading-tight font-bold">Petit-déj</span>
+              <span className="text-[9px] font-mono text-slate-500">
+                {mealSchedules.breakfast.bookingStart} - {mealSchedules.breakfast.bookingEnd}
+              </span>
+              <span
+                className={`mt-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                  mealSchedules.breakfast.timeStatus.isOpen
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-700'
+                }`}
+              >
+                {mealSchedules.breakfast.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+              </span>
+            </button>
+
+            {/* Menu du Déjeuner */}
+            <button
+              type="button"
+              onClick={() => setTargetMeal('lunch')}
+              className={`p-2 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                targetMeal === 'lunch'
+                  ? 'bg-white text-emerald-950 font-bold shadow-xs border border-emerald-300 ring-2 ring-emerald-500/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <span className="text-base">🍽️</span>
+              <span className="text-[11px] leading-tight font-bold">Déjeuner</span>
+              <span className="text-[9px] font-mono text-slate-500">
+                {mealSchedules.lunch.bookingStart} - {mealSchedules.lunch.bookingEnd}
+              </span>
+              <span
+                className={`mt-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                  mealSchedules.lunch.timeStatus.isOpen
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-700'
+                }`}
+              >
+                {mealSchedules.lunch.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+              </span>
+            </button>
+
+            {/* Menu du Soir (Dîner) */}
+            <button
+              type="button"
+              onClick={() => setTargetMeal('dinner')}
+              className={`p-2 rounded-xl text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                targetMeal === 'dinner'
+                  ? 'bg-white text-indigo-950 font-bold shadow-xs border border-indigo-300 ring-2 ring-indigo-500/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <span className="text-base">🌙</span>
+              <span className="text-[11px] leading-tight font-bold">Dîner</span>
+              <span className="text-[9px] font-mono text-slate-500">
+                {mealSchedules.dinner.bookingStart} - {mealSchedules.dinner.bookingEnd}
+              </span>
+              <span
+                className={`mt-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                  mealSchedules.dinner.timeStatus.isOpen
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-700'
+                }`}
+              >
+                {mealSchedules.dinner.timeStatus.isOpen ? 'Ouvert' : 'Clos'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Notice si réservations closes pour le service sélectionné */}
+        {!activeMealSchedule.timeStatus.isOpen && (
           <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl text-xs flex items-start gap-2.5">
             <Lock className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-rose-950">Réservations closes pour aujourd'hui</p>
-              <p className="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
-                Le créneau horaire ({timeStatus.startTime} - {timeStatus.endTime}) est clôturé. Le scan permet de vous identifier et de consulter vos réservations du jour, mais la validation d'un nouveau repas reste bloquée.
+            <div className="flex-1">
+              <p className="font-bold text-rose-950">
+                Réservations closes pour : {activeMealSchedule.label}
               </p>
+              <p className="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
+                Horaires stricts : {activeMealSchedule.bookingStart} - {activeMealSchedule.bookingEnd}. Le scan permet de vous identifier et de pré-remplir vos données, mais ce repas n'est pas commandable actuellement.
+              </p>
+              {Object.values(mealSchedules).some((m) => m.timeStatus.isOpen && m.mealType !== targetMeal) && (
+                <p className="text-[11px] font-bold text-emerald-700 mt-1">
+                  💡 Vous pouvez choisir un autre service ouvert ci-dessus pour réserver avec votre badge.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -286,8 +403,14 @@ export const UserBadgeScannerModal: React.FC<UserBadgeScannerModalProps> = ({
             </h4>
             <p className="text-sm font-bold text-slate-900">{identifiedUser.fullName}</p>
             <p className="text-xs font-mono text-emerald-700">
-              Matricule : {identifiedUser.badgeNumber} • {identifiedUser.department}
+              Matricule : {identifiedUser.badgeNumber} &bull; {identifiedUser.department}
             </p>
+            <div className="pt-1">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-200 text-emerald-900 text-xs font-bold">
+                <span>{activeMealSchedule.icon}</span>
+                <span>Réservation express : {activeMealSchedule.label}</span>
+              </span>
+            </div>
             <p className="text-[11px] text-emerald-600 pt-1">
               Remplissage instantané du formulaire en cours...
             </p>

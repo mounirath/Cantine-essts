@@ -122,12 +122,26 @@ export interface Reservation {
 export interface AppSettings {
   establishmentName: string;
   establishmentType: string; // "Établissement Scolaire", "Centre Hospitalier", "Entreprise", etc.
-  capacityPerDay: number;
+  capacityPerDay: number; // Capacité globale / Déjeuner par défaut
+
+  // --- 1. Petit-déjeuner du Matin ---
+  breakfastCapacity?: number; // Couverts max petit-déjeuner (ex: 80)
+  breakfastBookingStart?: string; // Heure début réservation (ex: "06:30")
+  breakfastBookingEnd?: string; // Heure fin réservation (ex: "09:00")
+  breakfastServiceHours?: string; // Horaires de service réfectoire (ex: "07h00 - 09h00")
+
+  // --- 2. Menu du Déjeuner (Repas de midi) ---
+  lunchCapacity?: number; // Couverts max déjeuner (ex: 120)
   bookingWindowStart: string; // "08:00"
   bookingWindowEnd: string; // "10:00"
-  breakfastServiceHours?: string; // "07h00 - 09h00"
   serviceHours: string; // "11h45 - 13h45" (Midi)
+
+  // --- 3. Menu du Soir (Dîner) ---
+  dinnerCapacity?: number; // Couverts max dîner (ex: 80)
+  dinnerBookingStart?: string; // Heure début réservation (ex: "14:00")
+  dinnerBookingEnd?: string; // Heure fin réservation (ex: "18:00")
   dinnerServiceHours?: string; // "19h00 - 21h00" (Soir)
+
   adminPasswordHash: string; // Hashed or encoded representation
   allowCancellation: boolean;
   kitchenContactEmail: string;
@@ -149,6 +163,8 @@ export interface TimeCheckResult {
   currentDisplayTime: string;
   startTime: string;
   endTime: string;
+  mealType?: MealType;
+  mealLabel?: string;
 }
 
 export interface SupabaseSyncStatus {
